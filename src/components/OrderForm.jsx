@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useCart } from '../context/CartContext';
 import { ShoppingBag, Landmark, MapPin, Phone, User, Home, ArrowRight } from 'lucide-react';
 
 export default function OrderForm({ onSubmit }) {
+  const { currentUser } = useCart();
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    city: '',
-    pincode: '',
-    landmark: ''
+    name: currentUser?.name || '',
+    phone: currentUser?.phone || '',
+    address: currentUser?.address || '',
+    city: currentUser?.city || '',
+    pincode: currentUser?.pincode || '',
+    landmark: currentUser?.landmark || ''
   });
+
+  // Watch for active customer updates or logins during session
+  useEffect(() => {
+    if (currentUser) {
+      setFormData({
+        name: currentUser.name || '',
+        phone: currentUser.phone || '',
+        address: currentUser.address || '',
+        city: currentUser.city || '',
+        pincode: currentUser.pincode || '',
+        landmark: currentUser.landmark || ''
+      });
+    }
+  }, [currentUser]);
   const [errors, setErrors] = useState({});
 
   const validate = () => {

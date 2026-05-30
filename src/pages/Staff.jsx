@@ -13,6 +13,7 @@ export default function Staff() {
 
   // Orders State
   const [orders, setOrders] = useState([]);
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'completed'
   const [selectedPhoto, setSelectedPhoto] = useState(null); // base64 string for Modal
   const [selectedPhotoName, setSelectedPhotoName] = useState('');
 
@@ -112,6 +113,11 @@ export default function Staff() {
     );
   }
 
+  // Filter orders by active / completed tabs
+  const activeOrders = orders.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled');
+  const completedOrders = orders.filter(o => o.status === 'Completed' || o.status === 'Cancelled');
+  const displayedOrders = activeTab === 'active' ? activeOrders : completedOrders;
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
       {/* Portal Header */}
@@ -134,20 +140,58 @@ export default function Staff() {
       </div>
 
       {/* Orders List / Workspace */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold text-white tracking-tight font-display">
-          Active Orders ({orders.length})
-        </h2>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+          <h2 className="text-lg font-bold text-white tracking-tight font-display uppercase tracking-wider text-amber-500">
+            Orders Supervisor Ledger
+          </h2>
 
-        {orders.length === 0 ? (
+          {/* Elegant Tab Switchers */}
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 self-start">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'active'
+                  ? 'bg-amber-500 text-slate-950 shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <span>Active Orders</span>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                activeTab === 'active' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
+              }`}>
+                {activeOrders.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'completed'
+                  ? 'bg-amber-500 text-slate-950 shadow-lg'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <span>Completed / Closed</span>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                activeTab === 'completed' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
+              }`}>
+                {completedOrders.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {displayedOrders.length === 0 ? (
           <div className="glass-panel rounded-2xl p-12 text-center border border-white/5 flex flex-col items-center justify-center gap-4">
             <span className="text-4xl">📭</span>
-            <p className="text-sm font-semibold text-gray-300">No orders registered in Local Storage yet.</p>
-            <p className="text-xs text-gray-500">Add products to cart and complete checkout to see order updates.</p>
+            <p className="text-sm font-semibold text-gray-300">
+              No {activeTab === 'active' ? 'active' : 'completed'} orders registered inside Local Storage.
+            </p>
+            <p className="text-xs text-gray-500">Once custom checkouts are completed via WhatsApp, they will sync here.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {orders.map((order) => (
+            {displayedOrders.map((order) => (
               <div 
                 key={order.id}
                 className="glass-panel p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-5 transition-all hover:border-white/10"

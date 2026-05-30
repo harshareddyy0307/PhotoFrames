@@ -6,7 +6,7 @@ import { openWhatsAppOrder } from '../utils/whatsapp';
 import { ClipboardCheck, Sparkles, CheckCircle2, ChevronRight, Home } from 'lucide-react';
 
 export default function Checkout() {
-  const { cart, subtotal, deliveryCharges, grandTotal, clearCart, navigate } = useCart();
+  const { cart, subtotal, deliveryCharges, grandTotal, clearCart, navigate, currentUser } = useCart();
   const [completedOrder, setCompletedOrder] = useState(null);
 
   // If cart is empty and no order is completed, redirect home
@@ -29,13 +29,18 @@ export default function Checkout() {
   const handleFormSubmit = (customerDetails) => {
     // 1. Compile full order details
     const orderData = {
-      customer: customerDetails,
+      userId: currentUser?.id || null,
+      customer: {
+        ...customerDetails,
+        email: currentUser?.email || ''
+      },
       items: cart.map(item => ({
         id: item.id,
         name: item.name,
         price: item.price,
         size: item.size,
         quantity: item.quantity,
+        image: item.image, // Fix: Include product catalog catalog thumbnail
         customImage: item.customImage // Contains compressed Base64 string!
       })),
       subtotal,
@@ -110,13 +115,13 @@ export default function Checkout() {
             <span>Go Back Shopping</span>
           </button>
           
-          <button
-            onClick={() => navigate('staff')}
-            className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover-scale"
+          <a
+            href="/staff.html"
+            className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover-scale cursor-pointer"
           >
-            <span>Staff Portal Login</span>
+            <span>Staff Portal</span>
             <ChevronRight size={14} />
-          </button>
+          </a>
         </div>
       </div>
     );

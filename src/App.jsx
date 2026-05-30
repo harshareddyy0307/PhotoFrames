@@ -4,8 +4,8 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
-import Staff from './pages/Staff';
-import Admin from './pages/Admin';
+import Auth from './pages/Auth';
+import Profile from './pages/Profile';
 import { Sparkles, MessageCircle } from 'lucide-react';
 
 export default function App() {
@@ -20,10 +20,10 @@ export default function App() {
         return <Cart />;
       case 'checkout':
         return <Checkout />;
-      case 'staff':
-        return <Staff />;
-      case 'admin':
-        return <Admin />;
+      case 'auth':
+        return <Auth />;
+      case 'profile':
+        return <Profile />;
       default:
         return <Home />;
     }

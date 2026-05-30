@@ -1,6 +1,20 @@
 // Local Storage keys
 const PRODUCTS_KEY = 'ms_products';
 const ORDERS_KEY = 'ms_orders';
+const USERS_KEY = 'ms_users';
+
+// Seed default customer account for portals testing
+const DEFAULT_USER = {
+  id: 'USR-827491',
+  name: 'Harsha Reddy',
+  email: 'customer@gmail.com',
+  password: 'password',
+  phone: '917989856610',
+  address: 'Flat 402, Aditya Heights',
+  city: 'Visakhapatnam',
+  pincode: '530003',
+  landmark: 'Near Rama Temple'
+};
 
 // Standard high-quality placeholder images from Unsplash (curated elegant designs)
 const DEFAULT_PRODUCTS = [
@@ -86,23 +100,113 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
-// Seed products if not already initialized
-export const initializeData = () => {
+// Sample orders to populate portal dynamically if empty
+const SAMPLE_ORDERS = [
+  {
+    id: 'ORD-827491',
+    date: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+    status: 'Pending',
+    customer: {
+      name: 'Harsha Reddy',
+      phone: '917989856610',
+      address: 'Flat 402, Aditya Heights',
+      city: 'Visakhapatnam',
+      pincode: '530003',
+      landmark: 'Near Rama Temple'
+    },
+    items: [
+      {
+        id: 'p1',
+        name: 'Elegant Walnut Frame',
+        price: 899,
+        size: '8x10',
+        quantity: 1,
+        image: 'https://images.unsplash.com/photo-1544273677-c433136021d4?auto=format&fit=crop&w=600&q=80',
+        customImage: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNkOTc3MDYiLz48dGV4dCB4PSI1MCIgeT0iNTUiIGZvbnQtc2l6ZT0iMTAiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzAyMDYxNyIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Q1VTVE9NIFBPUlRSQUlUPC90ZXh0Pjwvc3ZnPg=='
+      }
+    ],
+    subtotal: 899,
+    delivery: 99,
+    total: 998
+  },
+  {
+    id: 'ORD-582914',
+    date: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+    status: 'Completed',
+    customer: {
+      name: 'Vijay Kumar',
+      phone: '919876543210',
+      address: 'Door No 12-4-5, MVP Colony',
+      city: 'Visakhapatnam',
+      pincode: '530017',
+      landmark: 'Opposite Petrol Bunk'
+    },
+    items: [
+      {
+        id: 'p6',
+        name: 'Eternal Rose Custom Frame',
+        price: 1999,
+        size: '6x8',
+        quantity: 1,
+        image: 'https://images.unsplash.com/photo-1494959764136-6be9eb3c261e?auto=format&fit=crop&w=600&q=80',
+        customImage: null
+      }
+    ],
+    subtotal: 1999,
+    delivery: 0,
+    total: 1999
+  }
+];
+
+// Seed products and orders locally
+export const initializeDataLocal = () => {
   if (!localStorage.getItem(PRODUCTS_KEY)) {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(DEFAULT_PRODUCTS));
   }
-  if (!localStorage.getItem(ORDERS_KEY)) {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify([]));
+  const storedOrders = localStorage.getItem(ORDERS_KEY);
+  if (!storedOrders || JSON.parse(storedOrders).length === 0) {
+    localStorage.setItem(ORDERS_KEY, JSON.stringify(SAMPLE_ORDERS));
+  } else {
+    // Proactive auto-repair: if existing local storage orders are missing product thumbnail images
+    try {
+      const parsedOrders = JSON.parse(storedOrders);
+      let updated = false;
+      const repairedOrders = parsedOrders.map(order => {
+        const repairedItems = order.items.map(item => {
+          if (!item.image) {
+            const matchingProd = DEFAULT_PRODUCTS.find(p => p.id === item.id);
+            if (matchingProd) {
+              updated = true;
+              return { ...item, image: matchingProd.image };
+            }
+          }
+          return item;
+        });
+        return { ...order, items: repairedItems };
+      });
+      if (updated) {
+        localStorage.setItem(ORDERS_KEY, JSON.stringify(repairedOrders));
+      }
+    } catch (e) {
+      console.error("Auto-repair of stored orders failed:", e);
+    }
+  }
+  if (!localStorage.getItem(USERS_KEY)) {
+    localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_USER]));
   }
 };
 
-// Products Operations
+// Syncing seeder helper
+export const initializeData = () => {
+  initializeDataLocal();
+};
+
+// Products Operations (Synchronous)
 export const getProducts = () => {
-  initializeData();
+  initializeDataLocal();
   try {
     return JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || DEFAULT_PRODUCTS;
-  } catch (error) {
-    console.error('Error reading products', error);
+  } catch {
     return DEFAULT_PRODUCTS;
   }
 };
@@ -111,13 +215,14 @@ export const saveProducts = (products) => {
   localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
 };
 
-// Orders Operations
+// Orders Operations (Synchronous)
 export const getOrders = () => {
-  initializeData();
+  initializeDataLocal();
   try {
-    return JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
-  } catch (error) {
-    console.error('Error reading orders', error);
+    const orders = JSON.parse(localStorage.getItem(ORDERS_KEY)) || [];
+    // Ensure sorted latest to oldest
+    return orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+  } catch {
     return [];
   }
 };
@@ -126,22 +231,23 @@ export const saveOrders = (orders) => {
   localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
 };
 
+// Add single Order (Synchronous)
 export const addOrder = (order) => {
-  const orders = getOrders();
   const newOrder = {
     ...order,
     id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
     date: new Date().toISOString(),
     status: 'Pending'
   };
-  orders.unshift(newOrder); // Add to beginning of list
-  saveOrders(orders);
+
+  const localOrders = getOrders();
+  localOrders.unshift(newOrder);
+  saveOrders(localOrders);
+
   return newOrder;
 };
 
 // Compression Utility: Client-Side Image Resizer
-// Resizes files to maximum 800px on either dimension and compresses to 0.7 JPEG quality
-// Renders the file as a lightweight base64 string fit for localStorage
 export const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -173,12 +279,72 @@ export const compressImage = (file) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert canvas image to Base64 (JPG format with 0.6 quality for micro size)
-        const base64 = canvas.toDataURL('image/jpeg', 0.6);
+        // Convert canvas image to Base64 (JPG format with 0.5 quality for micro size)
+        const base64 = canvas.toDataURL('image/jpeg', 0.5);
         resolve(base64);
       };
       img.onerror = (err) => reject(err);
     };
     reader.onerror = (err) => reject(err);
   });
+};
+
+// Users Account Operations (Synchronous)
+export const getUsers = () => {
+  initializeDataLocal();
+  try {
+    return JSON.parse(localStorage.getItem(USERS_KEY)) || [DEFAULT_USER];
+  } catch {
+    return [DEFAULT_USER];
+  }
+};
+
+export const saveUsers = (users) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
+export const registerUser = (user) => {
+  const users = getUsers();
+  
+  // Check duplicate email
+  const emailExists = users.some(u => u.email.toLowerCase() === user.email.toLowerCase());
+  if (emailExists) {
+    throw new Error('Email is already registered. Please sign in!');
+  }
+
+  const newUser = {
+    ...user,
+    id: 'USR-' + Math.floor(100000 + Math.random() * 900000)
+  };
+
+  users.push(newUser);
+  saveUsers(users);
+  return newUser;
+};
+
+export const authenticateUser = (email, password) => {
+  const users = getUsers();
+  const user = users.find(
+    u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+  );
+
+  if (!user) {
+    throw new Error('Invalid email or password. Please try again.');
+  }
+
+  return user;
+};
+
+export const updateUserProfile = (userId, updatedFields) => {
+  const users = getUsers();
+  const updatedUsers = users.map((u) => {
+    if (u.id === userId) {
+      return { ...u, ...updatedFields };
+    }
+    return u;
+  });
+  saveUsers(updatedUsers);
+  
+  // Return the newly updated specific user
+  return updatedUsers.find(u => u.id === userId);
 };

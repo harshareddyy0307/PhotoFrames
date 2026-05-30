@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authenticateUser, registerUser, updateUserProfile } from '../utils/localStorage';
 
 const CartContext = createContext(null);
 
@@ -23,10 +24,48 @@ export const CartProvider = ({ children }) => {
   const [currentView, setView] = useState('home');
   const [viewParams, setViewParams] = useState({});
 
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('ms_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const navigate = (viewName, params = {}) => {
     setView(viewName);
     setViewParams(params);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const loginCustomer = (email, password) => {
+    const user = authenticateUser(email, password);
+    setCurrentUser(user);
+    sessionStorage.setItem('ms_current_user', JSON.stringify(user));
+    return user;
+  };
+
+  const signupCustomer = (userData) => {
+    const newUser = registerUser(userData);
+    setCurrentUser(newUser);
+    sessionStorage.setItem('ms_current_user', JSON.stringify(newUser));
+    return newUser;
+  };
+
+  const logoutCustomer = () => {
+    setCurrentUser(null);
+    sessionStorage.removeItem('ms_current_user');
+    navigate('home');
+  };
+
+  const updateProfile = (fields) => {
+    if (currentUser) {
+      const updated = updateUserProfile(currentUser.id, fields);
+      setCurrentUser(updated);
+      sessionStorage.setItem('ms_current_user', JSON.stringify(updated));
+      return updated;
+    }
   };
 
   useEffect(() => {
@@ -107,7 +146,12 @@ export const CartProvider = ({ children }) => {
         grandTotal,
         currentView,
         navigate,
-        viewParams
+        viewParams,
+        currentUser,
+        loginCustomer,
+        signupCustomer,
+        logoutCustomer,
+        updateProfile
       }}
     >
       {children}
