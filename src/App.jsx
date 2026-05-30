@@ -7,6 +7,7 @@ import Checkout from './pages/Checkout';
 import Auth from './pages/Auth';
 import Profile from './pages/Profile';
 import { Sparkles, MessageCircle } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const { currentView } = useCart();
@@ -74,6 +75,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 }
