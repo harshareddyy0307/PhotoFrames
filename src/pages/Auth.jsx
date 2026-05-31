@@ -5,11 +5,11 @@ import { Lock, Mail, User, Phone, MapPin, Landmark, Home, ArrowRight, ShieldChec
 export default function Auth() {
   const { loginCustomer, signupCustomer, navigate } = useCart();
   const [activeTab, setActiveTab] = useState('login'); // 'login' or 'signup'
-  
+
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  
+
   // Signup fields
   const [signupData, setSignupData] = useState({
     name: '',
@@ -37,9 +37,9 @@ export default function Auth() {
     const tempErrors = {};
     if (!loginEmail.trim()) tempErrors.loginEmail = 'Email address is required';
     else if (!/\S+@\S+\.\S+/.test(loginEmail)) tempErrors.loginEmail = 'Enter a valid email address';
-    
+
     if (!loginPassword) tempErrors.loginPassword = 'Password is required';
-    
+
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
   };
@@ -47,7 +47,7 @@ export default function Auth() {
   const validateSignup = () => {
     const tempErrors = {};
     if (!signupData.name.trim()) tempErrors.name = 'Full name is required';
-    
+
     if (!signupData.email.trim()) tempErrors.email = 'Email address is required';
     else if (!/\S+@\S+\.\S+/.test(signupData.email)) tempErrors.email = 'Enter a valid email address';
 
@@ -72,7 +72,7 @@ export default function Auth() {
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     setSubmitError('');
-    
+
     if (validateLogin()) {
       try {
         loginCustomer(loginEmail, loginPassword);
@@ -100,7 +100,7 @@ export default function Auth() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 flex flex-col justify-center min-h-[550px]">
       <div className="glass-panel p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col gap-6">
-        
+
         {/* Toggle Switch */}
         <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 self-center">
           <button
@@ -109,11 +109,10 @@ export default function Auth() {
               setErrors({});
               setSubmitError('');
             }}
-            className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'login'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'login'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             Sign In
           </button>
@@ -123,11 +122,10 @@ export default function Auth() {
               setErrors({});
               setSubmitError('');
             }}
-            className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'signup'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            className={`px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'signup'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
             Register
           </button>
@@ -139,8 +137,8 @@ export default function Auth() {
             {activeTab === 'login' ? 'Welcome Back!' : 'Create Customer Account'}
           </h2>
           <p className="text-xs text-gray-400">
-            {activeTab === 'login' 
-              ? 'Log in to access your pre-filled shipping data and track past orders.' 
+            {activeTab === 'login'
+              ? 'Log in to access your pre-filled shipping data and track past orders.'
               : 'Sign up to register your shipping address for seamless WhatsApp ordering.'}
           </p>
         </div>
@@ -197,7 +195,7 @@ export default function Auth() {
         {/* SIGNUP FORM */}
         {activeTab === 'signup' && (
           <form onSubmit={handleSignupSubmit} className="flex flex-col gap-4 text-xs font-semibold text-gray-300">
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Full Name */}
               <div className="flex flex-col gap-1.5">
@@ -209,7 +207,7 @@ export default function Auth() {
                   name="name"
                   value={signupData.name}
                   onChange={handleSignupChange}
-                  placeholder="Harsha Reddy"
+                  placeholder="Your Name"
                   className="w-full px-4 py-2.5 rounded-xl glass-input focus:outline-none"
                 />
                 {errors.name && <p className="text-[10px] text-red-400 font-bold">{errors.name}</p>}
@@ -225,7 +223,7 @@ export default function Auth() {
                   name="email"
                   value={signupData.email}
                   onChange={handleSignupChange}
-                  placeholder="harsha@gmail.com"
+                  placeholder="Enter Your Email Address"
                   className="w-full px-4 py-2.5 rounded-xl glass-input focus:outline-none"
                 />
                 {errors.email && <p className="text-[10px] text-red-400 font-bold">{errors.email}</p>}
@@ -243,7 +241,7 @@ export default function Auth() {
                   name="phone"
                   value={signupData.phone}
                   onChange={handleSignupChange}
-                  placeholder="9179898566"
+                  placeholder="Enter Your Phone Number"
                   className="w-full px-4 py-2.5 rounded-xl glass-input focus:outline-none"
                 />
                 {errors.phone && <p className="text-[10px] text-red-400 font-bold">{errors.phone}</p>}
@@ -293,7 +291,7 @@ export default function Auth() {
                   name="city"
                   value={signupData.city}
                   onChange={handleSignupChange}
-                  placeholder="Visakhapatnam"
+                  placeholder="Enter Your City Name"
                   className="w-full px-4 py-2.5 rounded-xl glass-input focus:outline-none"
                 />
                 {errors.city && <p className="text-[10px] text-red-400 font-bold">{errors.city}</p>}
@@ -342,9 +340,6 @@ export default function Auth() {
         )}
 
         <div className="border-t border-white/5 pt-4 text-center">
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-            <ShieldCheck size={12} className="text-emerald-400" /> Demo Account Credentials: <span className="text-gray-300 font-extrabold lowercase">customer@gmail.com</span> / <span className="text-gray-300 font-extrabold">password</span>
-          </p>
         </div>
 
       </div>

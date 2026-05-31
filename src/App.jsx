@@ -6,6 +6,7 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Auth from './pages/Auth';
 import Profile from './pages/Profile';
+import MiniCartPopup from './components/MiniCartPopup';
 import { Sparkles, MessageCircle } from 'lucide-react';
 
 export default function App() {
@@ -74,6 +75,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Shared Mini Cart Floating Popup */}
+      <MiniCartPopup />
     </div>
   );
 }

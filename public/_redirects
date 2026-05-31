@@ -1,0 +1,3 @@
+# Multi-page app - serve each HTML directly, no SPA catch-all
+/admin   /admin.html  200
+/staff   /staff.html  200

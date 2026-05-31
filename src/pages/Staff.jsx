@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getOrders, saveOrders } from '../utils/localStorage';
-import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User } from 'lucide-react';
+import { getOrders, saveOrders, authenticateStaff } from '../utils/localStorage';
+import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User, ShieldCheck } from 'lucide-react';
+
 
 export default function Staff() {
   // Login State
@@ -10,6 +11,16 @@ export default function Staff() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  
+  // Profile State
+  const [staffUser, setStaffUser] = useState(() => {
+    try {
+      const userStr = sessionStorage.getItem('ms_staff_user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Orders State
   const [orders, setOrders] = useState([]);
@@ -25,18 +36,23 @@ export default function Staff() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (username === 'staff1' && password === '1234') {
+    try {
+      const profile = authenticateStaff(username, password);
+      setStaffUser(profile);
       setIsLoggedIn(true);
       setLoginError('');
       sessionStorage.setItem('ms_staff_auth', 'true');
-    } else {
-      setLoginError('Invalid username or password');
+      sessionStorage.setItem('ms_staff_user', JSON.stringify(profile));
+    } catch (err) {
+      setLoginError(err.message || 'Invalid username or password');
     }
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setStaffUser(null);
     sessionStorage.removeItem('ms_staff_auth');
+    sessionStorage.removeItem('ms_staff_user');
   };
 
   const handleStatusChange = (orderId, newStatus) => {
@@ -104,10 +120,6 @@ export default function Staff() {
               <ChevronRight size={14} />
             </button>
           </form>
-
-          <p className="text-[10px] text-center text-gray-500">
-            Use demo login credentials: <span className="font-bold text-gray-400">staff1 / 1234</span>
-          </p>
         </div>
       </div>
     );
@@ -129,6 +141,12 @@ export default function Staff() {
           <p className="text-xs text-gray-400 mt-1">
             Review orders, update production states, and extract customer-uploaded Base64 photos.
           </p>
+          {staffUser && (
+            <p className="text-[10px] text-amber-400 font-extrabold uppercase mt-2 tracking-wider flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-amber-500" />
+              <span>Logged In: <span className="text-white">{staffUser.name}</span> ({staffUser.role} • {staffUser.branch})</span>
+            </p>
+          )}
         </div>
         <button
           onClick={handleLogout}
@@ -141,6 +159,27 @@ export default function Staff() {
 
       {/* Orders List / Workspace */}
       <div className="flex flex-col gap-6">
+        {/* Dynamic RBAC Notice Banner */}
+        {staffUser?.role === 'Designer' && (
+          <div className="glass-panel p-4 rounded-xl border border-amber-500/10 text-amber-400 text-[10px] leading-relaxed font-bold bg-amber-500/5">
+            ℹ️ DESIGN VIEW: You can view custom print references, download sublimation files, and text clients. Order status state updates are restricted to Managers/Printers.
+          </div>
+        )}
+        {staffUser?.role === 'Printer' && (
+          <div className="glass-panel p-4 rounded-xl border border-indigo-500/10 text-indigo-400 text-[10px] leading-relaxed font-bold bg-indigo-500/5">
+            ℹ️ PRINTER VIEW: You are authorized to select Pending, Processing, or Completed status for customer orders.
+          </div>
+        )}
+        {staffUser?.role === 'Packager' && (
+          <div className="glass-panel p-4 rounded-xl border border-teal-500/10 text-teal-400 text-[10px] leading-relaxed font-bold bg-teal-500/5">
+            ℹ️ PACKAGING VIEW: You are authorized to mark orders as Completed or Cancelled once packaging labels and dispatches are complete.
+          </div>
+        )}
+        {staffUser?.role === 'Manager' && (
+          <div className="glass-panel p-4 rounded-xl border border-emerald-500/10 text-emerald-400 text-[10px] leading-relaxed font-bold bg-emerald-500/5">
+            ℹ️ MANAGER VIEW: Full unrestricted access. You can update statuses to any level and manage record details.
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
           <h2 className="text-lg font-bold text-white tracking-tight font-display uppercase tracking-wider text-amber-500">
             Orders Supervisor Ledger
@@ -150,31 +189,27 @@ export default function Staff() {
           <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 self-start">
             <button
               onClick={() => setActiveTab('active')}
-              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
-                activeTab === 'active'
-                  ? 'bg-amber-500 text-slate-950 shadow-lg'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'active'
+                ? 'bg-amber-500 text-slate-950 shadow-lg'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               <span>Active Orders</span>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                activeTab === 'active' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
-              }`}>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${activeTab === 'active' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
+                }`}>
                 {activeOrders.length}
               </span>
             </button>
             <button
               onClick={() => setActiveTab('completed')}
-              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
-                activeTab === 'completed'
-                  ? 'bg-amber-500 text-slate-950 shadow-lg'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-5 py-2.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'completed'
+                ? 'bg-amber-500 text-slate-950 shadow-lg'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               <span>Completed / Closed</span>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                activeTab === 'completed' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
-              }`}>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${activeTab === 'completed' ? 'bg-slate-950 text-amber-400' : 'bg-white/5 text-gray-400'
+                }`}>
                 {completedOrders.length}
               </span>
             </button>
@@ -192,7 +227,7 @@ export default function Staff() {
         ) : (
           <div className="flex flex-col gap-4">
             {displayedOrders.map((order) => (
-              <div 
+              <div
                 key={order.id}
                 className="glass-panel p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-5 transition-all hover:border-white/10"
               >
@@ -213,8 +248,9 @@ export default function Staff() {
                     <span className="text-xs font-bold text-gray-400">Status:</span>
                     <select
                       value={order.status}
+                      disabled={staffUser?.role === 'Designer'}
                       onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold focus:outline-none cursor-pointer border ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold focus:outline-none border disabled:opacity-40 disabled:cursor-not-allowed ${
                         order.status === 'Completed'
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                           : order.status === 'Processing'
@@ -223,11 +259,41 @@ export default function Staff() {
                               ? 'bg-red-500/10 border-red-500/30 text-red-400'
                               : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                       }`}
+                      title={staffUser?.role === 'Designer' ? 'Designers are not authorized to update order status' : 'Update production status'}
                     >
-                      <option value="Pending" className="bg-slate-900 text-white">Pending</option>
-                      <option value="Processing" className="bg-slate-900 text-white">Processing</option>
-                      <option value="Completed" className="bg-slate-900 text-white">Completed</option>
-                      <option value="Cancelled" className="bg-slate-900 text-white">Cancelled</option>
+                      {/* Full access for Managers */}
+                      {staffUser?.role === 'Manager' && (
+                        <>
+                          <option value="Pending" className="bg-slate-900 text-white">Pending</option>
+                          <option value="Processing" className="bg-slate-900 text-white">Processing</option>
+                          <option value="Completed" className="bg-slate-900 text-white">Completed</option>
+                          <option value="Cancelled" className="bg-slate-900 text-white">Cancelled</option>
+                        </>
+                      )}
+
+                      {/* Read-only for Designers */}
+                      {staffUser?.role === 'Designer' && (
+                        <option value={order.status} className="bg-slate-900 text-white">{order.status} (Read-only)</option>
+                      )}
+
+                      {/* Printers can select Pending/Processing/Completed */}
+                      {staffUser?.role === 'Printer' && (
+                        <>
+                          <option value="Pending" className="bg-slate-900 text-white">Pending</option>
+                          <option value="Processing" className="bg-slate-900 text-white">Processing</option>
+                          <option value="Completed" className="bg-slate-900 text-white">Completed</option>
+                        </>
+                      )}
+
+                      {/* Packagers can select Completed/Cancelled */}
+                      {staffUser?.role === 'Packager' && (
+                        <>
+                          {order.status === 'Pending' && <option value="Pending" className="bg-slate-900 text-white">Pending</option>}
+                          {order.status === 'Processing' && <option value="Processing" className="bg-slate-900 text-white">Processing</option>}
+                          <option value="Completed" className="bg-slate-900 text-white">Completed</option>
+                          <option value="Cancelled" className="bg-slate-900 text-white">Cancelled</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -263,7 +329,7 @@ export default function Staff() {
                     </h4>
                     <div className="flex flex-col gap-2 bg-slate-950/40 p-4 rounded-xl border border-white/5">
                       {order.items.map((item, idx) => (
-                        <div 
+                        <div
                           key={idx}
                           className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 last:border-none pb-2 last:pb-0"
                         >
@@ -324,7 +390,7 @@ export default function Staff() {
             <h3 className="text-lg font-bold text-white font-display pr-12">
               Customer Reference Photo
             </h3>
-            
+
             {/* Direct Close Button */}
             <button
               onClick={() => setSelectedPhoto(null)}
@@ -334,9 +400,9 @@ export default function Staff() {
             </button>
 
             <div className="aspect-square bg-slate-950 rounded-2xl overflow-hidden border border-white/5 relative flex items-center justify-center">
-              <img 
-                src={selectedPhoto} 
-                alt="Full custom spec" 
+              <img
+                src={selectedPhoto}
+                alt="Full custom spec"
                 className="w-full h-full object-contain"
               />
             </div>

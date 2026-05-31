@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authenticateUser, registerUser, updateUserProfile } from '../utils/localStorage';
+import { authenticateUser, registerUser, updateUserProfile, getPromos } from '../utils/localStorage';
+
 
 const CartContext = createContext(null);
 
@@ -23,6 +24,12 @@ export const CartProvider = ({ children }) => {
 
   const [currentView, setView] = useState('home');
   const [viewParams, setViewParams] = useState({});
+
+  // Promo code states
+  const [appliedPromo, setAppliedPromo] = useState(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoSuccess, setPromoSuccess] = useState('');
+
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -72,7 +79,76 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem('ms_cart', JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product, size, quantity, customImage = null) => {
+  // Calculations
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  // Dynamic promo auto-reevaluator
+  useEffect(() => {
+    if (appliedPromo) {
+      if (subtotal < appliedPromo.minOrderValue) {
+        setAppliedPromo(null);
+        setPromoSuccess('');
+        setPromoError(`Promo ${appliedPromo.code} removed because order fell below ₹${appliedPromo.minOrderValue}.`);
+      }
+    }
+  }, [subtotal, appliedPromo]);
+
+  const applyPromo = (codeString) => {
+    setPromoError('');
+    setPromoSuccess('');
+    
+    if (!codeString || !codeString.trim()) {
+      setPromoError('Please enter a promo code.');
+      return;
+    }
+    
+    const promos = getPromos();
+    const foundPromo = promos.find(p => p.code.toUpperCase() === codeString.trim().toUpperCase());
+    
+    if (!foundPromo) {
+      setPromoError('Invalid Promo Code');
+      return;
+    }
+    
+    if (foundPromo.status !== 'Active') {
+      setPromoError('This promo code is inactive.');
+      return;
+    }
+    
+    // Check expiry
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiry = new Date(foundPromo.expiryDate);
+    expiry.setHours(0, 0, 0, 0);
+    if (expiry < today) {
+      setPromoError('This promo code has expired.');
+      return;
+    }
+    
+    // Check usage limits
+    if (foundPromo.usageLimit && foundPromo.usageCount >= foundPromo.usageLimit) {
+      setPromoError('This promo code usage limit has been reached.');
+      return;
+    }
+    
+    // Check min order value requirement
+    if (subtotal < foundPromo.minOrderValue) {
+      setPromoError(`Minimum order value of ₹${foundPromo.minOrderValue} required to apply this code.`);
+      return;
+    }
+    
+    setAppliedPromo(foundPromo);
+    setPromoSuccess('Promo Applied Successfully');
+  };
+
+  const removePromo = () => {
+    setAppliedPromo(null);
+    setPromoError('');
+    setPromoSuccess('');
+  };
+
+
+  const addToCart = (product, size, quantity, customImage = null, overridePrice = null) => {
     setCart((prevCart) => {
       // Find if item with same ID, size, and customImage already exists
       const existingItemIndex = prevCart.findIndex(
@@ -84,7 +160,7 @@ export const CartProvider = ({ children }) => {
 
       if (existingItemIndex > -1) {
         const newCart = [...prevCart];
-        newCart[existingItemIndex].quantity += quantity;
+        newCart[existingItemIndex].quantity += 1;
         return newCart;
       } else {
         return [
@@ -93,7 +169,7 @@ export const CartProvider = ({ children }) => {
             cartItemId: `${product.id}-${size}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             id: product.id,
             name: product.name,
-            price: product.price,
+            price: overridePrice !== null ? overridePrice : product.price,
             image: product.image,
             size: size,
             quantity: quantity,
@@ -125,12 +201,28 @@ export const CartProvider = ({ children }) => {
   };
 
   // Calculations
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   
+  let discount = 0;
+  if (appliedPromo) {
+    if (appliedPromo.discountType === 'percentage') {
+      discount = Math.floor((subtotal * appliedPromo.discountValue) / 100);
+      if (appliedPromo.maxDiscountLimit && discount > appliedPromo.maxDiscountLimit) {
+        discount = appliedPromo.maxDiscountLimit;
+      }
+    } else {
+      discount = appliedPromo.discountValue;
+    }
+    // Cap discount to subtotal
+    if (discount > subtotal) {
+      discount = subtotal;
+    }
+  }
+
   // Flat shipping charge of ₹99. Free delivery on orders above ₹1499!
   const deliveryCharges = subtotal > 1499 || subtotal === 0 ? 0 : 99;
-  const grandTotal = subtotal + deliveryCharges;
+  const grandTotal = Math.max(0, subtotal - discount + deliveryCharges);
+
 
   return (
     <CartContext.Provider
@@ -143,7 +235,15 @@ export const CartProvider = ({ children }) => {
         subtotal,
         totalItemsCount,
         deliveryCharges,
+        discount,
         grandTotal,
+        appliedPromo,
+        promoError,
+        promoSuccess,
+        applyPromo,
+        removePromo,
+        setPromoError,
+        setPromoSuccess,
         currentView,
         navigate,
         viewParams,

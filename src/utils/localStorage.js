@@ -2,6 +2,65 @@
 const PRODUCTS_KEY = 'ms_products';
 const ORDERS_KEY = 'ms_orders';
 const USERS_KEY = 'ms_users';
+const PROMOS_KEY = 'ms_promo_codes';
+const STAFF_KEY = 'ms_staff_members';
+
+const DEFAULT_STAFF = [
+  {
+    id: 'st-1',
+    name: 'Harshavardhan Reddy',
+    employeeId: 'EMP-9901',
+    role: 'Manager',
+    phone: '7989856610',
+    email: 'harsha@framecraft.com',
+    username: 'staff1',
+    password: 'MTIzNA==', // '1234' Base64 encoded
+    branch: 'Visakhapatnam Main',
+    status: 'Active',
+    lastLogin: '2026-05-30T14:22:10.000Z'
+  },
+  {
+    id: 'st-2',
+    name: 'Vijay Kumar',
+    employeeId: 'EMP-9902',
+    role: 'Designer',
+    phone: '9876543210',
+    email: 'vijay@framecraft.com',
+    username: 'designer1',
+    password: 'MTIzNDU2', // '123456' Base64 encoded
+    branch: 'Visakhapatnam Sub',
+    status: 'Active',
+    lastLogin: '2026-05-30T10:15:30.000Z'
+  },
+  {
+    id: 'st-3',
+    name: 'Rahul Sen',
+    employeeId: 'EMP-9903',
+    role: 'Printer',
+    phone: '8765432109',
+    email: 'rahul@framecraft.com',
+    username: 'printer1',
+    password: 'MTIzNDU2', // '123456' Base64 encoded
+    branch: 'Visakhapatnam Main',
+    status: 'Active',
+    lastLogin: null
+  },
+  {
+    id: 'st-4',
+    name: 'Anjali Shah',
+    employeeId: 'EMP-9904',
+    role: 'Packager',
+    phone: '7654321098',
+    email: 'anjali@framecraft.com',
+    username: 'packager1',
+    password: 'MTIzNDU2', // '123456' Base64 encoded
+    branch: 'Visakhapatnam Sub',
+    status: 'Inactive',
+    lastLogin: null
+  }
+];
+
+
 
 // Seed default customer account for portals testing
 const DEFAULT_USER = {
@@ -16,6 +75,58 @@ const DEFAULT_USER = {
   landmark: 'Near Rama Temple'
 };
 
+const DEFAULT_PROMOS = [
+  {
+    id: 'pr-1',
+    code: 'WELCOME10',
+    discountType: 'percentage',
+    discountValue: 10,
+    expiryDate: '2026-12-31',
+    minOrderValue: 500,
+    maxDiscountLimit: 200,
+    usageLimit: 100,
+    usageCount: 12,
+    status: 'Active'
+  },
+  {
+    id: 'pr-2',
+    code: 'FESTIVE250',
+    discountType: 'fixed',
+    discountValue: 250,
+    expiryDate: '2026-12-31',
+    minOrderValue: 1200,
+    maxDiscountLimit: 250,
+    usageLimit: 50,
+    usageCount: 4,
+    status: 'Active'
+  },
+  {
+    id: 'pr-3',
+    code: 'EXPIRED50',
+    discountType: 'percentage',
+    discountValue: 50,
+    expiryDate: '2025-01-01',
+    minOrderValue: 0,
+    maxDiscountLimit: 500,
+    usageLimit: 10,
+    usageCount: 10,
+    status: 'Active'
+  },
+  {
+    id: 'pr-4',
+    code: 'INACTIVE100',
+    discountType: 'fixed',
+    discountValue: 100,
+    expiryDate: '2026-12-31',
+    minOrderValue: 500,
+    maxDiscountLimit: 100,
+    usageLimit: 20,
+    usageCount: 0,
+    status: 'Inactive'
+  }
+];
+
+
 // Standard high-quality placeholder images from Unsplash (curated elegant designs)
 const DEFAULT_PRODUCTS = [
   {
@@ -25,6 +136,7 @@ const DEFAULT_PRODUCTS = [
     price: 899,
     description: 'Premium solid walnut wood frame with a classic satin finish. Perfect for family portraits.',
     sizes: ['6x8', '8x10', '12x12'],
+    sizePrices: { '6x8': 699, '8x10': 899, '12x12': 1199 },
     image: 'https://images.unsplash.com/photo-1544273677-c433136021d4?auto=format&fit=crop&w=600&q=80',
     featured: true
   },
@@ -35,6 +147,7 @@ const DEFAULT_PRODUCTS = [
     price: 699,
     description: 'Modern slim black matte wood frame. Enhances contemporary artwork and black-and-white photos.',
     sizes: ['6x8', '8x10', '12x12'],
+    sizePrices: { '6x8': 499, '8x10': 699, '12x12': 999 },
     image: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80',
     featured: false
   },
@@ -45,6 +158,7 @@ const DEFAULT_PRODUCTS = [
     price: 1499,
     description: 'Beautiful heart-shaped mosaic collage. Personalize with your memorable photographs.',
     sizes: ['8x10', '12x12', '16x20'],
+    sizePrices: { '8x10': 1199, '12x12': 1499, '16x20': 1999 },
     image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80',
     featured: true
   },
@@ -55,6 +169,7 @@ const DEFAULT_PRODUCTS = [
     price: 1799,
     description: 'Stunning shadowbox spelling initials and adorned with your miniature pictures.',
     sizes: ['12x12', '16x20'],
+    sizePrices: { '12x12': 1799, '16x20': 2399 },
     image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=600&q=80',
     featured: true
   },
@@ -65,6 +180,7 @@ const DEFAULT_PRODUCTS = [
     price: 1299,
     description: 'Handcrafted wooden memory shadow box with glowing LED fairy lights and custom photos.',
     sizes: ['8x10', '12x12'],
+    sizePrices: { '8x10': 999, '12x12': 1299 },
     image: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80',
     featured: false
   },
@@ -75,6 +191,7 @@ const DEFAULT_PRODUCTS = [
     price: 1999,
     description: 'A preserved gold foil rose enclosed in an elegant standing glass frame with customized engraving.',
     sizes: ['6x8', '8x10'],
+    sizePrices: { '6x8': 1699, '8x10': 1999 },
     image: 'https://images.unsplash.com/photo-1494959764136-6be9eb3c261e?auto=format&fit=crop&w=600&q=80',
     featured: true
   },
@@ -85,6 +202,7 @@ const DEFAULT_PRODUCTS = [
     price: 999,
     description: 'Desktop wooden block calendar with interchangeable high-grade photo sheets for every month.',
     sizes: ['6x8'],
+    sizePrices: { '6x8': 999 },
     image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=600&q=80',
     featured: false
   },
@@ -95,6 +213,7 @@ const DEFAULT_PRODUCTS = [
     price: 1199,
     description: 'Double-sided crystal clear frameless acrylic standee block. Stands elegantly on any desk.',
     sizes: ['6x8', '8x10'],
+    sizePrices: { '6x8': 899, '8x10': 1199 },
     image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
     featured: false
   }
@@ -194,6 +313,12 @@ export const initializeDataLocal = () => {
   if (!localStorage.getItem(USERS_KEY)) {
     localStorage.setItem(USERS_KEY, JSON.stringify([DEFAULT_USER]));
   }
+  if (!localStorage.getItem(PROMOS_KEY)) {
+    localStorage.setItem(PROMOS_KEY, JSON.stringify(DEFAULT_PROMOS));
+  }
+  if (!localStorage.getItem(STAFF_KEY)) {
+    localStorage.setItem(STAFF_KEY, JSON.stringify(DEFAULT_STAFF));
+  }
 };
 
 // Syncing seeder helper
@@ -205,7 +330,48 @@ export const initializeData = () => {
 export const getProducts = () => {
   initializeDataLocal();
   try {
-    return JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || DEFAULT_PRODUCTS;
+    const products = JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || DEFAULT_PRODUCTS;
+    
+    // Proactive auto-upgrade: Ensure all products have sizePrices populated
+    let upgraded = false;
+    const upgradedProducts = products.map(product => {
+      if (!product.sizePrices || Object.keys(product.sizePrices).length === 0) {
+        const sizes = product.sizes || ['8x10'];
+        const basePrice = Number(product.price) || 899;
+        const sizePrices = {};
+        
+        sizes.forEach((size, index) => {
+          if (size.toLowerCase().includes('6x8')) {
+            sizePrices[size] = Math.round(basePrice * 0.77);
+          } else if (size.toLowerCase().includes('8x10')) {
+            sizePrices[size] = basePrice;
+          } else if (size.toLowerCase().includes('12x12')) {
+            sizePrices[size] = Math.round(basePrice * 1.33);
+          } else if (size.toLowerCase().includes('16x20')) {
+            sizePrices[size] = Math.round(basePrice * 1.66);
+          } else {
+            if (index === 0 && sizes.length > 1) {
+              sizePrices[size] = Math.round(basePrice * 0.77);
+            } else if (index === sizes.length - 1 && sizes.length > 1) {
+              sizePrices[size] = Math.round(basePrice * 1.33);
+            } else {
+              sizePrices[size] = basePrice;
+            }
+          }
+        });
+        
+        upgraded = true;
+        return { ...product, sizePrices };
+      }
+      return product;
+    });
+    
+    if (upgraded) {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(upgradedProducts));
+      return upgradedProducts;
+    }
+    
+    return products;
   } catch {
     return DEFAULT_PRODUCTS;
   }
@@ -348,3 +514,147 @@ export const updateUserProfile = (userId, updatedFields) => {
   // Return the newly updated specific user
   return updatedUsers.find(u => u.id === userId);
 };
+
+// Promo Codes Operations (Synchronous)
+export const getPromos = () => {
+  initializeDataLocal();
+  try {
+    return JSON.parse(localStorage.getItem(PROMOS_KEY)) || DEFAULT_PROMOS;
+  } catch {
+    return DEFAULT_PROMOS;
+  }
+};
+
+export const savePromos = (promos) => {
+  localStorage.setItem(PROMOS_KEY, JSON.stringify(promos));
+};
+
+export const addPromo = (promo) => {
+  const promos = getPromos();
+  const newPromo = {
+    ...promo,
+    id: 'pr-' + Math.floor(1000 + Math.random() * 9000),
+    usageCount: 0
+  };
+  promos.push(newPromo);
+  savePromos(promos);
+  return newPromo;
+};
+
+export const updatePromo = (promoId, updatedFields) => {
+  const promos = getPromos();
+  const updatedPromos = promos.map((p) => {
+    if (p.id === promoId) {
+      return { ...p, ...updatedFields };
+    }
+    return p;
+  });
+  savePromos(updatedPromos);
+  return updatedPromos.find(p => p.id === promoId);
+};
+
+export const deletePromo = (promoId) => {
+  const promos = getPromos();
+  const filtered = promos.filter(p => p.id !== promoId);
+  savePromos(filtered);
+};
+
+export const incrementPromoUsage = (code) => {
+  const promos = getPromos();
+  const updated = promos.map((p) => {
+    if (p.code.toUpperCase() === code.toUpperCase()) {
+      return { ...p, usageCount: (p.usageCount || 0) + 1 };
+    }
+    return p;
+  });
+  savePromos(updated);
+};
+
+// Staff Accounts Operations (Synchronous with Base64 Obfuscation)
+export const getStaff = () => {
+  initializeDataLocal();
+  try {
+    return JSON.parse(localStorage.getItem(STAFF_KEY)) || DEFAULT_STAFF;
+  } catch {
+    return DEFAULT_STAFF;
+  }
+};
+
+export const saveStaff = (staffList) => {
+  localStorage.setItem(STAFF_KEY, JSON.stringify(staffList));
+};
+
+export const addStaff = (staffMember) => {
+  const staffList = getStaff();
+  const encryptedPassword = staffMember.password ? window.btoa(staffMember.password) : window.btoa('123456');
+  
+  const newStaff = {
+    ...staffMember,
+    id: 'st-' + Math.floor(1000 + Math.random() * 9000),
+    password: encryptedPassword,
+    lastLogin: null
+  };
+  staffList.push(newStaff);
+  saveStaff(staffList);
+  return newStaff;
+};
+
+export const updateStaff = (staffId, updatedFields) => {
+  const staffList = getStaff();
+  const updatedStaff = staffList.map((st) => {
+    if (st.id === staffId) {
+      let finalFields = { ...updatedFields };
+      // Encrypt password if updated
+      if (updatedFields.password && !updatedFields.password.endsWith('==')) {
+        finalFields.password = window.btoa(updatedFields.password);
+      }
+      return { ...st, ...finalFields };
+    }
+    return st;
+  });
+  saveStaff(updatedStaff);
+  return updatedStaff.find(st => st.id === staffId);
+};
+
+export const deleteStaff = (staffId) => {
+  const staffList = getStaff();
+  const filtered = staffList.filter(st => st.id !== staffId);
+  saveStaff(filtered);
+};
+
+export const authenticateStaff = (username, password) => {
+  const staffList = getStaff();
+  const found = staffList.find(st => st.username.toLowerCase() === username.toLowerCase());
+  
+  if (!found) {
+    throw new Error('Staff username not registered.');
+  }
+  
+  if (found.status !== 'Active') {
+    throw new Error('This staff account is currently inactive.');
+  }
+  
+  let decryptedPass = '';
+  try {
+    decryptedPass = window.atob(found.password);
+  } catch {
+    decryptedPass = found.password;
+  }
+  
+  if (decryptedPass !== password) {
+    throw new Error('Incorrect password. Please try again.');
+  }
+  
+  // Update last login
+  const updatedStaff = staffList.map(st => {
+    if (st.id === found.id) {
+      return { ...st, lastLogin: new Date().toISOString() };
+    }
+    return st;
+  });
+  saveStaff(updatedStaff);
+  
+  return found;
+};
+
+

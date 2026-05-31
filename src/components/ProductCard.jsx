@@ -8,11 +8,38 @@ export default function ProductCard({ product }) {
   const stock = product.stock !== undefined ? product.stock : 25;
   const isOutOfStock = stock === 0;
 
-  const [selectedSize, setSelectedSize] = useState(product.sizes[0] || '8x10');
+  const [selectedSize, setSelectedSize] = useState(() => {
+    try {
+      const savedSizes = sessionStorage.getItem('ms_selected_sizes');
+      const parsed = savedSizes ? JSON.parse(savedSizes) : {};
+      return parsed[product.id] || product.sizes[0] || '8x10';
+    } catch {
+      return product.sizes[0] || '8x10';
+    }
+  });
   const [quantity, setQuantity] = useState(isOutOfStock ? 0 : 1);
   const [customImage, setCustomImage] = useState(null); // Base64 string
   const [uploading, setUploading] = useState(false);
   const [added, setAdded] = useState(false);
+  const [animatePrice, setAnimatePrice] = useState(false);
+
+  const currentPrice = product.sizePrices ? (product.sizePrices[selectedSize] || product.price) : product.price;
+
+  const handleSizeChange = (size) => {
+    setSelectedSize(size);
+    setAnimatePrice(true);
+    setTimeout(() => setAnimatePrice(false), 300);
+
+    // Persist selected size scoping by product ID
+    try {
+      const savedSizes = sessionStorage.getItem('ms_selected_sizes');
+      const parsed = savedSizes ? JSON.parse(savedSizes) : {};
+      parsed[product.id] = size;
+      sessionStorage.setItem('ms_selected_sizes', JSON.stringify(parsed));
+    } catch (e) {
+      console.error('Failed to save size preference:', e);
+    }
+  };
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -32,7 +59,7 @@ export default function ProductCard({ product }) {
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
-    addToCart(product, selectedSize, quantity, customImage);
+    addToCart(product, selectedSize, quantity, customImage, currentPrice);
     setAdded(true);
     setTimeout(() => {
       setAdded(false);
@@ -66,8 +93,8 @@ export default function ProductCard({ product }) {
           <h3 className="text-lg font-bold text-white tracking-tight leading-snug">
             {product.name}
           </h3>
-          <p className="text-xl font-extrabold text-amber-400 mt-1">
-            ₹{product.price}
+          <p className={`text-xl font-extrabold text-amber-400 mt-1 transition-all duration-300 ${animatePrice ? 'scale-110 text-amber-300 filter drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : ''}`}>
+            ₹{currentPrice}
           </p>
           <p className="text-xs text-gray-400 mt-2 line-clamp-2 leading-relaxed">
             {product.description}
@@ -83,7 +110,7 @@ export default function ProductCard({ product }) {
             {product.sizes.map((size) => (
               <button
                 key={size}
-                onClick={() => setSelectedSize(size)}
+                onClick={() => handleSizeChange(size)}
                 disabled={isOutOfStock}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   isOutOfStock
@@ -103,11 +130,9 @@ export default function ProductCard({ product }) {
         <div className="relative">
           <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2 flex items-center justify-between">
             <span>Upload Custom Photo</span>
-            {isCustomizedCategory && (
-              <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full uppercase">
-                Required
-              </span>
-            )}
+            <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full uppercase">
+              Required
+            </span>
           </label>
 
           {customImage ? (
@@ -179,6 +204,17 @@ export default function ProductCard({ product }) {
           ) : null}
         </div>
 
+        {/* Dynamic Recalculated Subtotal Indicator */}
+        {quantity > 1 && (
+          <div className="flex items-center justify-between text-xs font-semibold text-gray-400 bg-white/5 border border-white/5 p-3 rounded-xl mt-1.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <span className="text-[10px] text-gray-500 uppercase font-black tracking-wider">Recalculated:</span>
+            <div className="flex items-center gap-1 font-mono">
+              <span className="text-gray-400">₹{currentPrice} × {quantity} =</span>
+              <span className="text-amber-400 font-extrabold text-sm">₹{currentPrice * quantity}</span>
+            </div>
+          </div>
+        )}
+
         {/* Quantity and Actions */}
         <div className="flex items-center gap-3 mt-1">
           {/* Quantity Selector */}
@@ -211,13 +247,13 @@ export default function ProductCard({ product }) {
           {/* Add To Cart Button */}
           <button
             onClick={handleAddToCart}
-            disabled={isOutOfStock || (isCustomizedCategory && !customImage)}
+            disabled={isOutOfStock || !customImage}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
               added 
                 ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
                 : isOutOfStock
                   ? 'bg-slate-900 border border-white/5 text-gray-600 cursor-not-allowed'
-                  : isCustomizedCategory && !customImage
+                  : !customImage
                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5'
                     : 'bg-amber-500 text-slate-950 hover-scale shadow-lg shadow-amber-500/10 active:scale-95 cursor-pointer font-bold'
             }`}

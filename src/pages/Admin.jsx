@@ -1,10 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { getProducts, saveProducts, getOrders } from '../utils/localStorage';
-import { Plus, Edit2, Trash2, DollarSign, ShoppingCart, Loader2, Users, FolderOpen, Save, ShieldAlert, Award } from 'lucide-react';
+import { getProducts, saveProducts, getOrders, saveOrders, getPromos, savePromos, addPromo, updatePromo, deletePromo, getStaff, saveStaff, addStaff, updateStaff, deleteStaff } from '../utils/localStorage';
+import { Plus, Edit2, Trash2, DollarSign, ShoppingCart, Loader2, Users, User, FolderOpen, Save, ShieldAlert, Award, Lock, ChevronRight, LogOut, Ticket, Eye, EyeOff } from 'lucide-react';
+
 
 export default function Admin() {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'orders', 'products', 'staff'
+
+  // Admin Security & Authentication Session State
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return sessionStorage.getItem('ms_admin_auth') === 'true';
+  });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin123') {
+      setIsLoggedIn(true);
+      setLoginError('');
+      sessionStorage.setItem('ms_admin_auth', 'true');
+    } else {
+      setLoginError('Invalid administrator credentials');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    sessionStorage.removeItem('ms_admin_auth');
+  };
 
   // Products state
   const [products, setProducts] = useState([]);
@@ -31,11 +56,67 @@ export default function Admin() {
     totalRevenue: 0
   });
 
+  // Promo code states
+  const [promos, setPromos] = useState([]);
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [editingPromo, setEditingPromo] = useState(null);
+  
+  // Promo Code Form fields
+  const [promoFormData, setPromoFormData] = useState({
+    code: '',
+    discountType: 'percentage',
+    discountValue: '',
+    expiryDate: '',
+    minOrderValue: '0',
+    maxDiscountLimit: '',
+    usageLimit: '100',
+    status: 'Active'
+  });
+  
+  // Promo list filter/search/pagination state
+  const [promoSearchQuery, setPromoSearchQuery] = useState('');
+  const [promoStatusFilter, setPromoStatusFilter] = useState('All'); // 'All', 'Active', 'Inactive', 'Expired'
+  const [promoCurrentPage, setPromoCurrentPage] = useState(1);
+  const promosPerPage = 5;
+
+  // Staff management states
+  const [staff, setStaff] = useState([]);
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  
+  const [staffFormData, setStaffFormData] = useState({
+    name: '',
+    employeeId: '',
+    role: 'Designer',
+    phone: '',
+    email: '',
+    username: '',
+    password: '',
+    branch: 'Visakhapatnam Main',
+    status: 'Active'
+  });
+  
+  const [showResetPassModal, setShowResetPassModal] = useState(false);
+  const [resetPassStaff, setResetPassStaff] = useState(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState('All');
+  const [staffStatusFilter, setStaffStatusFilter] = useState('All');
+  const [staffCurrentPage, setStaffCurrentPage] = useState(1);
+  const staffsPerPage = 5;
+  
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
   useEffect(() => {
     const prodsData = getProducts();
     const ordersData = getOrders();
+    const promosData = getPromos();
+    const staffData = getStaff();
     setProducts(prodsData);
     setOrders(ordersData);
+    setPromos(promosData);
+    setStaff(staffData);
 
     // Calculate metrics
     const pending = ordersData.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled').length;
@@ -51,6 +132,217 @@ export default function Admin() {
       totalRevenue: revenue
     });
   }, [activeTab]);
+
+  // Open Staff Form to Add
+  const handleAddStaffClick = () => {
+    setEditingStaff(null);
+    setStaffFormData({
+      name: '',
+      employeeId: 'EMP-' + Math.floor(1000 + Math.random() * 9000),
+      role: 'Designer',
+      phone: '',
+      email: '',
+      username: '',
+      password: '',
+      branch: 'Visakhapatnam Main',
+      status: 'Active'
+    });
+    setShowStaffForm(true);
+  };
+
+  // Open Staff Form to Edit
+  const handleEditStaffClick = (member) => {
+    setEditingStaff(member);
+    setStaffFormData({
+      name: member.name,
+      employeeId: member.employeeId,
+      role: member.role,
+      phone: member.phone,
+      email: member.email,
+      username: member.username,
+      password: '', // Kept empty for editing safety (unless resetting)
+      branch: member.branch || 'Visakhapatnam Main',
+      status: member.status
+    });
+    setShowStaffForm(true);
+  };
+
+  // Submit Staff Form
+  const handleStaffFormSubmit = (e) => {
+    e.preventDefault();
+    if (!staffFormData.username.trim() || !staffFormData.name.trim()) return;
+    
+    const staffData = {
+      name: staffFormData.name.trim(),
+      employeeId: staffFormData.employeeId,
+      role: staffFormData.role,
+      phone: staffFormData.phone.trim(),
+      email: staffFormData.email.trim(),
+      username: staffFormData.username.trim().toLowerCase(),
+      branch: staffFormData.branch,
+      status: staffFormData.status
+    };
+    
+    // If adding, supply password, else keep previous password
+    if (!editingStaff) {
+      staffData.password = staffFormData.password.trim() || '123456';
+    }
+    
+    if (editingStaff) {
+      updateStaff(editingStaff.id, staffData);
+    } else {
+      addStaff(staffData);
+    }
+    
+    setStaff(getStaff());
+    setShowStaffForm(false);
+    setEditingStaff(null);
+  };
+
+  // Toggle active/inactive instantly for staff
+  const handleToggleStaffStatus = (member) => {
+    const newStatus = member.status === 'Active' ? 'Inactive' : 'Active';
+    updateStaff(member.id, { status: newStatus });
+    setStaff(getStaff());
+  };
+
+  // Delete Staff account
+  const handleDeleteStaff = (staffId) => {
+    if (window.confirm('Are you sure you want to permanently delete this staff member account?')) {
+      deleteStaff(staffId);
+      setStaff(getStaff());
+    }
+  };
+
+  // Open Reset Pass Modal
+  const handleOpenResetPass = (member) => {
+    setResetPassStaff(member);
+    setNewPasswordInput('');
+    setShowResetPassModal(true);
+  };
+
+  // Submit Reset Pass Form
+  const handleResetPassSubmit = (e) => {
+    e.preventDefault();
+    if (!newPasswordInput.trim()) return;
+    
+    updateStaff(resetPassStaff.id, { password: newPasswordInput.trim() });
+    setStaff(getStaff());
+    setShowResetPassModal(false);
+    setResetPassStaff(null);
+    alert(`Password reset successfully for ${resetPassStaff.name}!`);
+  };
+
+  // Auto Generate Password
+  const handleAutoGeneratePassword = () => {
+    const pass = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit PIN
+    setNewPasswordInput(pass);
+  };
+
+  // Eye toggle decrypt visualizer
+  const togglePasswordVisibility = (staffId) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [staffId]: !prev[staffId]
+    }));
+  };
+
+  // Open Promo form to Add
+  const handleAddPromoClick = () => {
+    setEditingPromo(null);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 30);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    setPromoFormData({
+      code: '',
+      discountType: 'percentage',
+      discountValue: '15',
+      expiryDate: tomorrowStr,
+      minOrderValue: '500',
+      maxDiscountLimit: '150',
+      usageLimit: '50',
+      status: 'Active'
+    });
+    setShowPromoForm(true);
+  };
+
+  // Open Promo form to Edit
+  const handleEditPromoClick = (promo) => {
+    setEditingPromo(promo);
+    setPromoFormData({
+      code: promo.code,
+      discountType: promo.discountType,
+      discountValue: promo.discountValue.toString(),
+      expiryDate: promo.expiryDate,
+      minOrderValue: (promo.minOrderValue || 0).toString(),
+      maxDiscountLimit: (promo.maxDiscountLimit || '').toString(),
+      usageLimit: (promo.usageLimit || 100).toString(),
+      status: promo.status
+    });
+    setShowPromoForm(true);
+  };
+
+  // Auto Generate Promo Code
+  const handleAutoGeneratePromo = () => {
+    const prefixes = ['SAVE', 'CRAFT', 'DEAL', 'WELCOME', 'FESTIVE', 'SUPER', 'DISCOUNT', 'LOVE'];
+    const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randomNum = Math.floor(100 + Math.random() * 900);
+    const generatedCode = `${randomPrefix}${randomNum}`;
+    
+    setPromoFormData(prev => ({
+      ...prev,
+      code: generatedCode
+    }));
+  };
+
+  // Submit Promo Form
+  const handlePromoFormSubmit = (e) => {
+    e.preventDefault();
+    if (!promoFormData.code.trim()) return;
+    
+    const formattedCode = promoFormData.code.trim().toUpperCase();
+    const valNum = parseFloat(promoFormData.discountValue) || 0;
+    const minOrderNum = parseFloat(promoFormData.minOrderValue) || 0;
+    const maxLimitNum = promoFormData.maxDiscountLimit ? parseFloat(promoFormData.maxDiscountLimit) : null;
+    const usageLimitNum = parseInt(promoFormData.usageLimit) || 100;
+    
+    const promoData = {
+      code: formattedCode,
+      discountType: promoFormData.discountType,
+      discountValue: valNum,
+      expiryDate: promoFormData.expiryDate,
+      minOrderValue: minOrderNum,
+      maxDiscountLimit: maxLimitNum,
+      usageLimit: usageLimitNum,
+      status: promoFormData.status
+    };
+    
+    if (editingPromo) {
+      updatePromo(editingPromo.id, promoData);
+    } else {
+      addPromo(promoData);
+    }
+    
+    setPromos(getPromos());
+    setShowPromoForm(false);
+    setEditingPromo(null);
+  };
+
+  // Delete Promo Code
+  const handleDeletePromo = (promoId) => {
+    if (window.confirm('Are you sure you want to permanently delete this promo code?')) {
+      deletePromo(promoId);
+      setPromos(getPromos());
+    }
+  };
+
+  // Toggle active/inactive instantly
+  const handleTogglePromoStatus = (promo) => {
+    const newStatus = promo.status === 'Active' ? 'Inactive' : 'Active';
+    updatePromo(promo.id, { status: newStatus });
+    setPromos(getPromos());
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -79,7 +371,9 @@ export default function Admin() {
       name: product.name,
       category: product.category,
       price: product.price.toString(),
-      sizes: product.sizes.join(', '),
+      sizes: product.sizePrices && Object.keys(product.sizePrices).length > 0
+        ? Object.entries(product.sizePrices).map(([size, price]) => `${size}:${price}`).join(', ')
+        : product.sizes.join(', '),
       description: product.description,
       image: product.image,
       stock: (product.stock !== undefined ? product.stock : 25).toString()
@@ -90,13 +384,48 @@ export default function Admin() {
   // Submit Product Form
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    const sizesArray = formData.sizes
-      .split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
     const priceNum = parseFloat(formData.price) || 0;
     const stockNum = parseInt(formData.stock) >= 0 ? parseInt(formData.stock) : 25;
+
+    const sizesArray = [];
+    const sizePricesObj = {};
+
+    formData.sizes.split(',').forEach((s, index) => {
+      const parts = s.split(':');
+      const sizeName = parts[0].trim();
+      if (sizeName.length > 0) {
+        sizesArray.push(sizeName);
+        if (parts[1]) {
+          const sizePrice = parseFloat(parts[1].trim());
+          if (!isNaN(sizePrice)) {
+            sizePricesObj[sizeName] = sizePrice;
+          }
+        }
+      }
+    });
+
+    // Backfill any sizes that didn't have explicit colons
+    sizesArray.forEach((size, index) => {
+      if (sizePricesObj[size] === undefined) {
+        if (size.toLowerCase().includes('6x8')) {
+          sizePricesObj[size] = Math.round(priceNum * 0.77);
+        } else if (size.toLowerCase().includes('8x10')) {
+          sizePricesObj[size] = priceNum;
+        } else if (size.toLowerCase().includes('12x12')) {
+          sizePricesObj[size] = Math.round(priceNum * 1.33);
+        } else if (size.toLowerCase().includes('16x20')) {
+          sizePricesObj[size] = Math.round(priceNum * 1.66);
+        } else {
+          if (index === 0 && sizesArray.length > 1) {
+            sizePricesObj[size] = Math.round(priceNum * 0.77);
+          } else if (index === sizesArray.length - 1 && sizesArray.length > 1) {
+            sizePricesObj[size] = Math.round(priceNum * 1.33);
+          } else {
+            sizePricesObj[size] = priceNum;
+          }
+        }
+      }
+    });
 
     let updatedProducts;
 
@@ -110,6 +439,7 @@ export default function Admin() {
             category: formData.category,
             price: priceNum,
             sizes: sizesArray,
+            sizePrices: sizePricesObj,
             description: formData.description,
             image: formData.image,
             stock: stockNum
@@ -125,6 +455,7 @@ export default function Admin() {
         category: formData.category,
         price: priceNum,
         sizes: sizesArray,
+        sizePrices: sizePricesObj,
         description: formData.description,
         image: formData.image,
         stock: stockNum
@@ -161,6 +492,99 @@ export default function Admin() {
     saveProducts(updated);
   };
 
+  // Guarded Admin Login Screen Render
+  if (!isLoggedIn) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 flex flex-col justify-center min-h-[500px]">
+        <div className="glass-panel p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col gap-6 animate-scale-up">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div className="p-4 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+              <Lock size={32} />
+            </div>
+            <h2 className="text-2xl font-black text-white font-display mt-2">Admin Security</h2>
+            <p className="text-xs text-gray-400">Log in with master credentials to configure inventory catalogs.</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Admin Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin"
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Access Passcode</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+              />
+            </div>
+
+            {loginError && <p className="text-[10px] text-red-400 font-extrabold">{loginError}</p>}
+
+            <button
+              type="submit"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover-scale cursor-pointer"
+            >
+              <span>Unlock Admin Panel</span>
+              <ChevronRight size={14} />
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter and paginate promo codes
+  const filteredPromos = promos.filter(promo => {
+    const matchesSearch = promo.code.toLowerCase().includes(promoSearchQuery.toLowerCase());
+    
+    const isExpired = new Date(promo.expiryDate) < new Date(new Date().setHours(0, 0, 0, 0));
+    
+    if (promoStatusFilter === 'Active') {
+      return matchesSearch && promo.status === 'Active' && !isExpired;
+    } else if (promoStatusFilter === 'Inactive') {
+      return matchesSearch && promo.status === 'Inactive';
+    } else if (promoStatusFilter === 'Expired') {
+      return matchesSearch && isExpired;
+    }
+    return matchesSearch;
+  });
+
+  const totalPagesPromos = Math.ceil(filteredPromos.length / promosPerPage);
+  const paginatedPromos = filteredPromos.slice(
+    (promoCurrentPage - 1) * promosPerPage,
+    promoCurrentPage * promosPerPage
+  );
+
+  // Filter and paginate staff members
+  const filteredStaff = staff.filter(member => {
+    const query = staffSearchQuery.toLowerCase();
+    const matchesSearch = 
+      member.name.toLowerCase().includes(query) ||
+      member.employeeId.toLowerCase().includes(query) ||
+      member.username.toLowerCase().includes(query);
+      
+    const matchesRole = staffRoleFilter === 'All' || member.role === staffRoleFilter;
+    const matchesStatus = staffStatusFilter === 'All' || member.status === staffStatusFilter;
+    
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  const totalPagesStaff = Math.ceil(filteredStaff.length / staffsPerPage);
+  const paginatedStaff = filteredStaff.slice(
+    (staffCurrentPage - 1) * staffsPerPage,
+    staffCurrentPage * staffsPerPage
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
       {/* Admin Header */}
@@ -174,49 +598,61 @@ export default function Admin() {
           </p>
         </div>
 
-        {/* Tab Selector Links */}
-        <div className="flex gap-2 bg-slate-950 p-1 rounded-xl border border-white/5 self-start sm:self-auto">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
+        <button
+          onClick={handleLogout}
+          className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-extrabold uppercase tracking-wider border border-red-500/20 flex items-center gap-1.5 transition-all hover-scale cursor-pointer"
+        >
+          <LogOut size={14} />
+          <span>Lock Console</span>
+        </button>
+      </div>
+      {/* Tab Selector Links */}
+      <div className="flex gap-2 bg-slate-950 p-1 rounded-xl border border-white/5 self-start sm:self-auto">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'dashboard'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
             }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'orders'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'orders'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
             }`}
-          >
-            Orders
-          </button>
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'products'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
+        >
+          Orders
+        </button>
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'products'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
             }`}
-          >
-            Inventory
-          </button>
-          <button
-            onClick={() => setActiveTab('staff')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'staff'
-                ? 'bg-amber-500 text-slate-950 shadow'
-                : 'text-gray-400 hover:text-white'
+        >
+          Inventory
+        </button>
+        <button
+          onClick={() => setActiveTab('staff')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'staff'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
             }`}
-          >
-            Staff Accounts
-          </button>
-        </div>
+        >
+          Staff Accounts
+        </button>
+        <button
+          onClick={() => setActiveTab('promos')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'promos'
+              ? 'bg-amber-500 text-slate-950 shadow'
+              : 'text-gray-400 hover:text-white'
+            }`}
+        >
+          Promo Codes
+        </button>
       </div>
 
       {/* TABS CONTENT */}
@@ -315,9 +751,9 @@ export default function Admin() {
                   {products.map((product) => (
                     <tr key={product.id} className="hover:bg-white/5 transition-all">
                       <td className="p-4 flex items-center gap-3">
-                        <img 
-                          src={product.image} 
-                          alt={product.name} 
+                        <img
+                          src={product.image}
+                          alt={product.name}
                           className="w-12 h-12 object-cover rounded border border-white/10"
                         />
                         <div>
@@ -331,7 +767,22 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="p-4 text-amber-400 font-extrabold text-sm">₹{product.price}</td>
-                      <td className="p-4 text-gray-400">{product.sizes.join(', ')}</td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1.5 max-w-[280px]">
+                          {product.sizes.map((size) => {
+                            const sizePrice = product.sizePrices ? product.sizePrices[size] : null;
+                            return (
+                              <span 
+                                key={size}
+                                className="bg-slate-950 border border-white/5 text-gray-300 px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 font-mono hover:border-amber-500/20 transition-all"
+                              >
+                                <span className="text-gray-400">{size}:</span>
+                                <span className="text-amber-400 font-black">₹{sizePrice || product.price}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
                           <button
@@ -342,11 +793,10 @@ export default function Admin() {
                           >
                             -
                           </button>
-                          <span className={`w-8 text-center font-extrabold ${
-                            (product.stock !== undefined ? product.stock : 25) <= 5
+                          <span className={`w-8 text-center font-extrabold ${(product.stock !== undefined ? product.stock : 25) <= 5
                               ? 'text-red-400'
                               : 'text-gray-200'
-                          }`}>
+                            }`}>
                             {product.stock !== undefined ? product.stock : 25}
                           </span>
                           <button
@@ -440,36 +890,39 @@ export default function Admin() {
                       </select>
                     </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Sizes */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Sizes (comma-separated)</label>
-                      <input
-                        type="text"
-                        name="sizes"
-                        value={formData.sizes}
-                        onChange={handleInputChange}
-                        required
-                        placeholder="6x8, 8x10, 12x12"
-                        className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Sizes */}
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Sizes & Prices (comma-separated)</label>
+                        <input
+                          type="text"
+                          name="sizes"
+                          value={formData.sizes}
+                          onChange={handleInputChange}
+                          required
+                          placeholder="6x8:699, 8x10:899, 12x12:1199"
+                          className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                        />
+                        <span className="text-[9px] text-amber-500/80 font-semibold leading-normal">
+                          * Format as "Size:Price" (e.g. 6x8:699) to set size pricing. Simple sizes will scale proportionally from base price.
+                        </span>
+                      </div>
 
-                    {/* Stock level */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Stock Qty (Units)</label>
-                      <input
-                        type="number"
-                        name="stock"
-                        value={formData.stock}
-                        onChange={handleInputChange}
-                        required
-                        min="0"
-                        placeholder="25"
-                        className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
-                      />
-                    </div>
-                  </div></div>
+                      {/* Stock level */}
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Stock Qty (Units)</label>
+                        <input
+                          type="number"
+                          name="stock"
+                          value={formData.stock}
+                          onChange={handleInputChange}
+                          required
+                          min="0"
+                          placeholder="25"
+                          className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                        />
+                      </div>
+                    </div></div>
 
                   {/* Image URL */}
                   <div className="flex flex-col gap-1.5">
@@ -525,48 +978,213 @@ export default function Admin() {
         </div>
       )}
 
-      {/* C. Staff Accounts Tab */}
+      {/* C. Staff Management Tab */}
       {activeTab === 'staff' && (
         <div className="flex flex-col gap-6">
-          <h2 className="text-lg font-bold text-white font-display">Staff Portal Access Accounts</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Staff Accounts Card */}
-            <div className="glass-panel p-6 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-3">
-                <Users size={16} className="text-amber-500" /> Active Staff Logins
-              </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h2 className="text-lg font-bold text-white font-display">Staff Management Dashboard</h2>
+            <button
+              onClick={handleAddStaffClick}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-xl hover-scale flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10 self-start sm:self-auto"
+            >
+              <Plus size={14} className="stroke-[2.5]" />
+              <span>Add Staff Member</span>
+            </button>
+          </div>
 
-              <div className="bg-slate-950/60 p-4 rounded-xl border border-white/5 flex items-center justify-between text-xs">
-                <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Account ID</p>
-                  <p className="text-sm font-bold text-white mt-0.5">staff1</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Password Code</p>
-                  <p className="text-sm font-bold text-amber-400 mt-0.5">1234</p>
-                </div>
-              </div>
-
-              <p className="text-xs text-gray-500 leading-relaxed mt-1">
-                These credentials are pre-configured locally in the application stack to allow instant order administration. Staff members logging in with this account will be able to review, contact, and download custom sublimation print uploads.
-              </p>
+          {/* Search, Filter controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-white/5">
+            <div>
+              <input
+                type="text"
+                placeholder="Search by name, EMP ID, username..."
+                value={staffSearchQuery}
+                onChange={(e) => {
+                  setStaffSearchQuery(e.target.value);
+                  setStaffCurrentPage(1);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+              />
             </div>
-
-            {/* Admin Policy Summary */}
-            <div className="glass-panel p-6 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-3">
-                <FolderOpen size={16} className="text-amber-500" /> Administration Instructions
-              </h3>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                As the admin, your product additions, edits, and deletions instantly propagate to the catalog listing on the customer side. Ensure images use high-quality hosted HTTPS URLs (e.g. from Unsplash or image clouds) for optimal loading times.
-              </p>
-              <div className="bg-amber-500/10 text-amber-400 p-3.5 rounded-xl border border-amber-500/15 text-[10px] leading-relaxed font-bold">
-                ⚠️ IMPORTANT: Avoid clearing browser cookies or local data blocks unless you have exported/noted your custom inventory, as Local Storage is bound directly to the active web browser.
-              </div>
+            <div>
+              <select
+                value={staffRoleFilter}
+                onChange={(e) => {
+                  setStaffRoleFilter(e.target.value);
+                  setStaffCurrentPage(1);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="All" className="bg-slate-900 text-white">All Roles/Designations</option>
+                <option value="Manager" className="bg-slate-900 text-white">Manager</option>
+                <option value="Designer" className="bg-slate-900 text-white">Designer</option>
+                <option value="Printer" className="bg-slate-900 text-white">Printer</option>
+                <option value="Packager" className="bg-slate-900 text-white">Packager</option>
+              </select>
+            </div>
+            <div>
+              <select
+                value={staffStatusFilter}
+                onChange={(e) => {
+                  setStaffStatusFilter(e.target.value);
+                  setStaffCurrentPage(1);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="All" className="bg-slate-900 text-white">All Statuses</option>
+                <option value="Active" className="bg-slate-900 text-white">Active</option>
+                <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
+              </select>
             </div>
           </div>
+
+          {/* Staff List Table */}
+          <div className="glass-panel rounded-2xl overflow-hidden border border-white/5 shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/80 border-b border-white/5 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="p-4">Staff Name & EMP ID</th>
+                    <th className="p-4">Secure Credentials</th>
+                    <th className="p-4">Role / Branch</th>
+                    <th className="p-4">Contact Info</th>
+                    <th className="p-4 text-center">Status</th>
+                    <th className="p-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-semibold">
+                  {paginatedStaff.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-8 text-center text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                        No Staff Accounts Found
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedStaff.map((member) => {
+                      let decryptedPassword = '';
+                      try {
+                        decryptedPassword = window.atob(member.password);
+                      } catch {
+                        decryptedPassword = member.password;
+                      }
+                      const isVisible = !!visiblePasswords[member.id];
+                      
+                      return (
+                        <tr key={member.id} className="hover:bg-white/5 transition-all">
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                                <User size={16} />
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-white text-sm">{member.name}</h4>
+                                <p className="text-[10px] text-amber-500 font-black mt-0.5">{member.employeeId}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 font-mono text-gray-300">
+                            <p className="text-gray-400 font-semibold">User: <span className="font-bold text-white font-mono">{member.username}</span></p>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[10px] text-gray-500">Pass:</span>
+                              <span className="font-bold text-gray-300 tracking-widest font-mono">
+                                {isVisible ? decryptedPassword : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility(member.id)}
+                                className="p-1 hover:bg-white/5 text-gray-500 hover:text-white rounded transition-colors cursor-pointer"
+                                title={isVisible ? 'Hide Password' : 'Show Decrypted Password'}
+                              >
+                                {isVisible ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="bg-indigo-500/15 border border-indigo-500/25 px-2.5 py-0.5 rounded-full text-indigo-400 text-[9px] font-black uppercase">
+                              {member.role}
+                            </span>
+                            <p className="text-[10px] text-gray-500 font-normal mt-1">{member.branch}</p>
+                          </td>
+                          <td className="p-4 text-gray-400">
+                            <p>{member.email}</p>
+                            <p className="text-[10px] text-gray-500 font-normal mt-0.5">{member.phone}</p>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleToggleStaffStatus(member)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border cursor-pointer transition-all hover:scale-105 ${
+                                member.status === 'Active'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                              }`}
+                              title="Click to toggle status"
+                            >
+                              {member.status}
+                            </button>
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleOpenResetPass(member)}
+                                className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-lg transition-all cursor-pointer"
+                                title="Reset/Regenerate Password"
+                              >
+                                <Lock size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleEditStaffClick(member)}
+                                className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition-all cursor-pointer"
+                                title="Edit Staff Member"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              {member.id !== 'st-1' && (
+                                <button
+                                  onClick={() => handleDeleteStaff(member.id)}
+                                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all cursor-pointer"
+                                  title="Delete Staff Account"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Staff Pagination Controls */}
+          {totalPagesStaff > 1 && (
+            <div className="flex items-center justify-between border-t border-white/5 pt-4">
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                Page {staffCurrentPage} of {totalPagesStaff}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setStaffCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={staffCurrentPage === 1}
+                  className="px-3 py-1.5 bg-slate-900 border border-white/5 hover:border-white/10 text-gray-400 hover:text-white rounded-lg text-[10px] font-bold uppercase disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setStaffCurrentPage(prev => Math.min(totalPagesStaff, prev + 1))}
+                  disabled={staffCurrentPage === totalPagesStaff}
+                  className="px-3 py-1.5 bg-slate-900 border border-white/5 hover:border-white/10 text-gray-400 hover:text-white rounded-lg text-[10px] font-bold uppercase disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
 
       {/* D. Orders Tab */}
       {activeTab === 'orders' && (
@@ -633,15 +1251,14 @@ export default function Admin() {
                           </td>
                           <td className="p-4 text-amber-400 font-extrabold text-sm">₹{order.total}</td>
                           <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
-                              order.status === 'Completed'
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${order.status === 'Completed'
                                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                                 : order.status === 'Processing'
                                   ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400'
                                   : order.status === 'Cancelled'
                                     ? 'bg-red-500/10 border-red-500/30 text-red-400'
                                     : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                            }`}>
+                              }`}>
                               {order.status}
                             </span>
                           </td>
@@ -667,6 +1284,593 @@ export default function Admin() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* E. Promo Codes Tab */}
+      {activeTab === 'promos' && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h2 className="text-lg font-bold text-white font-display">Promo Code Generator</h2>
+            <button
+              onClick={handleAddPromoClick}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-xl hover-scale flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10 self-start sm:self-auto"
+            >
+              <Plus size={14} className="stroke-[2.5]" />
+              <span>Create Promo Code</span>
+            </button>
+          </div>
+
+          {/* Search, Filter controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/40 p-4 rounded-2xl border border-white/5">
+            <div className="sm:col-span-2">
+              <input
+                type="text"
+                placeholder="Search promo codes..."
+                value={promoSearchQuery}
+                onChange={(e) => {
+                  setPromoSearchQuery(e.target.value);
+                  setPromoCurrentPage(1);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+              />
+            </div>
+            <div>
+              <select
+                value={promoStatusFilter}
+                onChange={(e) => {
+                  setPromoStatusFilter(e.target.value);
+                  setPromoCurrentPage(1);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="All" className="bg-slate-900 text-white">All Statuses</option>
+                <option value="Active" className="bg-slate-900 text-white">Active & Ongoing</option>
+                <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
+                <option value="Expired" className="bg-slate-900 text-white">Expired</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Promos List Table */}
+          <div className="glass-panel rounded-2xl overflow-hidden border border-white/5 shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/80 border-b border-white/5 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="p-4">Promo Code Details</th>
+                    <th className="p-4">Discount Settings</th>
+                    <th className="p-4">Expiry Date</th>
+                    <th className="p-4">Min Order / Max Discount</th>
+                    <th className="p-4">Usage Stats</th>
+                    <th className="p-4 text-center">Status</th>
+                    <th className="p-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-semibold">
+                  {paginatedPromos.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-8 text-center text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                        No Promo Codes Found
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedPromos.map((promo) => {
+                      const isExpired = new Date(promo.expiryDate) < new Date(new Date().setHours(0, 0, 0, 0));
+                      return (
+                        <tr key={promo.id} className="hover:bg-white/5 transition-all">
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+                                <Ticket size={16} />
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-white text-sm tracking-wide uppercase">{promo.code}</h4>
+                                <p className="text-[10px] text-gray-500 font-normal mt-0.5">ID: {promo.id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-amber-400 font-black text-sm uppercase">
+                            {promo.discountType === 'percentage' 
+                              ? `${promo.discountValue}% Off` 
+                              : `₹${promo.discountValue} Off`}
+                          </td>
+                          <td className="p-4 text-gray-300">
+                            <span className={isExpired ? 'text-red-400 line-through' : ''}>
+                              {new Date(promo.expiryDate).toLocaleDateString()}
+                            </span>
+                            {isExpired && (
+                              <span className="ml-1.5 bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase">
+                                Expired
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-gray-400">
+                            <p>Min Order: ₹{promo.minOrderValue || 0}</p>
+                            <p className="text-[10px] text-gray-500 font-normal mt-0.5">
+                              Max Cap: {promo.maxDiscountLimit ? `₹${promo.maxDiscountLimit}` : 'No limit'}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-col gap-1.5 w-32">
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-gray-400">{promo.usageCount || 0} / {promo.usageLimit} used</span>
+                              </div>
+                              <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                <div 
+                                  className="bg-amber-500 h-1.5 rounded-full" 
+                                  style={{ width: `${Math.min(100, ((promo.usageCount || 0) / promo.usageLimit) * 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleTogglePromoStatus(promo)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border cursor-pointer transition-all hover:scale-105 ${
+                                promo.status === 'Active' && !isExpired
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                              }`}
+                              title="Click to toggle status"
+                            >
+                              {promo.status === 'Active' && !isExpired ? 'Active' : promo.status === 'Inactive' ? 'Inactive' : 'Expired'}
+                            </button>
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleEditPromoClick(promo)}
+                                className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition-all cursor-pointer"
+                                title="Edit Promo Code"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePromo(promo.id)}
+                                className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all cursor-pointer"
+                                title="Delete Promo Code"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Promo Pagination Controls */}
+          {totalPagesPromos > 1 && (
+            <div className="flex items-center justify-between border-t border-white/5 pt-4">
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                Page {promoCurrentPage} of {totalPagesPromos}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPromoCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={promoCurrentPage === 1}
+                  className="px-3 py-1.5 bg-slate-900 border border-white/5 hover:border-white/10 text-gray-400 hover:text-white rounded-lg text-[10px] font-bold uppercase disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPromoCurrentPage(prev => Math.min(totalPagesPromos, prev + 1))}
+                  disabled={promoCurrentPage === totalPagesPromos}
+                  className="px-3 py-1.5 bg-slate-900 border border-white/5 hover:border-white/10 text-gray-400 hover:text-white rounded-lg text-[10px] font-bold uppercase disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* F. Add/Edit Promo Modal */}
+      {showPromoForm && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-950 border border-white/10 rounded-3xl w-full max-w-lg p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-scale-up max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold text-white font-display flex items-center gap-1.5">
+                  <Ticket size={20} className="text-amber-500" />
+                  {editingPromo ? 'Edit Promo Code' : 'Create Promo Code'}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {editingPromo ? `Modify configurations of coupon: ${editingPromo.code}` : 'Add a new custom coupon with specific values.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPromoForm(false)}
+                className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handlePromoFormSubmit} className="flex flex-col gap-4 text-xs font-semibold text-gray-300">
+              {/* Promo Code & AutoGen Button */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Promo Code Name</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoFormData.code}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                    required
+                    placeholder="E.g. WELCOME50"
+                    className="flex-1 px-4 py-2.5 rounded-xl glass-input focus:outline-none uppercase text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAutoGeneratePromo}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer hover-scale"
+                  >
+                    Auto Gen
+                  </button>
+                </div>
+              </div>
+
+              {/* Discount Type & Discount Value */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Discount Type</label>
+                  <select
+                    value={promoFormData.discountType}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, discountType: e.target.value }))}
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none cursor-pointer"
+                  >
+                    <option value="percentage" className="bg-slate-900 text-white">Percentage (%)</option>
+                    <option value="fixed" className="bg-slate-900 text-white">Fixed Amount (₹)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    Discount Value {promoFormData.discountType === 'percentage' ? '(%)' : '(₹)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={promoFormData.discountValue}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, discountValue: e.target.value }))}
+                    required
+                    min="1"
+                    max={promoFormData.discountType === 'percentage' ? '100' : '10000'}
+                    placeholder={promoFormData.discountType === 'percentage' ? '15' : '150'}
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Expiry Date & Usage Limit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Expiry Date</label>
+                  <input
+                    type="date"
+                    value={promoFormData.expiryDate}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
+                    required
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none cursor-pointer text-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Usage Limit</label>
+                  <input
+                    type="number"
+                    value={promoFormData.usageLimit}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, usageLimit: e.target.value }))}
+                    required
+                    min="1"
+                    placeholder="100"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Min Order Value & Max Discount Limit */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Minimum Order Value (₹)</label>
+                  <input
+                    type="number"
+                    value={promoFormData.minOrderValue}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, minOrderValue: e.target.value }))}
+                    required
+                    min="0"
+                    placeholder="500"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    Max Discount Cap (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={promoFormData.maxDiscountLimit}
+                    onChange={(e) => setPromoFormData(prev => ({ ...prev, maxDiscountLimit: e.target.value }))}
+                    placeholder="Leave empty for no cap"
+                    disabled={promoFormData.discountType === 'fixed'}
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              {/* Status Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Initial Status</label>
+                <select
+                  value={promoFormData.status}
+                  onChange={(e) => setPromoFormData(prev => ({ ...prev, status: e.target.value }))}
+                  className="px-4 py-2.5 rounded-xl glass-input focus:outline-none cursor-pointer"
+                >
+                  <option value="Active" className="bg-slate-900 text-white">Active</option>
+                  <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
+                </select>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPromoForm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest transition-all cursor-pointer hover-scale shadow-lg shadow-amber-500/10 text-center"
+                >
+                  Save Coupon
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* G. Add/Edit Staff Modal */}
+      {showStaffForm && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-950 border border-white/10 rounded-3xl w-full max-w-lg p-6 sm:p-8 flex flex-col gap-6 shadow-2xl animate-scale-up max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold text-white font-display flex items-center gap-1.5">
+                  <User size={20} className="text-amber-500" />
+                  {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {editingStaff ? `Configure access settings for: ${editingStaff.name}` : 'Create a new staff portal login with role permissions.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowStaffForm(false)}
+                className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleStaffFormSubmit} className="flex flex-col gap-4 text-xs font-semibold text-gray-300">
+              {/* Full Name & Employee ID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Full Name</label>
+                  <input
+                    type="text"
+                    value={staffFormData.name}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, name: e.target.value }))}
+                    required
+                    placeholder="Your Full Name"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Employee ID</label>
+                  <input
+                    type="text"
+                    value={staffFormData.employeeId}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, employeeId: e.target.value }))}
+                    required
+                    placeholder="EMP-9999"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Role & Branch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Role/Designation</label>
+                  <select
+                    value={staffFormData.role}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, role: e.target.value }))}
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none cursor-pointer"
+                  >
+                    <option value="Manager" className="bg-slate-900 text-white">Manager (Unrestricted)</option>
+                    <option value="Designer" className="bg-slate-900 text-white">Designer (Read-only)</option>
+                    <option value="Printer" className="bg-slate-900 text-white">Printer (Print & Update)</option>
+                    <option value="Packager" className="bg-slate-900 text-white">Packager (Pack & Dispatch)</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Branch/Department</label>
+                  <input
+                    type="text"
+                    value={staffFormData.branch}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, branch: e.target.value }))}
+                    required
+                    placeholder="Visakhapatnam Main"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Contact Email & Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Email Address</label>
+                  <input
+                    type="email"
+                    value={staffFormData.email}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, email: e.target.value }))}
+                    required
+                    placeholder="employee@framecraft.com"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Phone Number</label>
+                  <input
+                    type="text"
+                    value={staffFormData.phone}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    required
+                    placeholder="91xxxxxxxxxx"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Username & Initial Password */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Username</label>
+                  <input
+                    type="text"
+                    value={staffFormData.username}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, username: e.target.value.toLowerCase() }))}
+                    required
+                    disabled={!!editingStaff}
+                    placeholder="E.g. kiran1"
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none disabled:opacity-50 text-white font-mono"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    {editingStaff ? 'Password (Managed via Reset Button)' : 'Initial Password'}
+                  </label>
+                  <input
+                    type="password"
+                    value={staffFormData.password}
+                    onChange={(e) => setStaffFormData(prev => ({ ...prev, password: e.target.value }))}
+                    required={!editingStaff}
+                    disabled={!!editingStaff}
+                    placeholder={editingStaff ? '••••••••' : 'Enter login passcode'}
+                    className="px-4 py-2.5 rounded-xl glass-input focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              {/* Status Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Initial Status</label>
+                <select
+                  value={staffFormData.status}
+                  onChange={(e) => setStaffFormData(prev => ({ ...prev, status: e.target.value }))}
+                  className="px-4 py-2.5 rounded-xl glass-input focus:outline-none cursor-pointer"
+                >
+                  <option value="Active" className="bg-slate-900 text-white">Active</option>
+                  <option value="Inactive" className="bg-slate-900 text-white">Inactive</option>
+                </select>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowStaffForm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest transition-all cursor-pointer hover-scale shadow-lg shadow-amber-500/10 text-center"
+                >
+                  Save Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* H. Reset Password Modal */}
+      {showResetPassModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-950 border border-white/10 rounded-3xl w-full max-w-sm p-6 flex flex-col gap-6 shadow-2xl animate-scale-up">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold text-white font-display flex items-center gap-1.5">
+                  <Lock size={18} className="text-amber-500" />
+                  <span>Reset Password</span>
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  Regenerate login credentials securely for: <span className="font-bold text-white">{resetPassStaff?.name}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowResetPassModal(false)}
+                className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPassSubmit} className="flex flex-col gap-4 text-xs font-semibold text-gray-300">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">New Password / Passcode</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    required
+                    placeholder="E.g. 582914"
+                    className="flex-1 px-4 py-2.5 rounded-xl glass-input focus:outline-none text-white font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAutoGeneratePassword}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer hover-scale"
+                  >
+                    Auto Gen
+                  </button>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassModal(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest transition-all cursor-pointer hover-scale shadow-lg shadow-amber-500/10 text-center"
+                >
+                  Confirm Reset
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

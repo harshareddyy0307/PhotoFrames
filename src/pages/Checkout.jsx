@@ -1,13 +1,33 @@
 import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import OrderForm from '../components/OrderForm';
-import { addOrder } from '../utils/localStorage';
+import { addOrder, incrementPromoUsage } from '../utils/localStorage';
 import { openWhatsAppOrder } from '../utils/whatsapp';
-import { ClipboardCheck, Sparkles, CheckCircle2, ChevronRight, Home } from 'lucide-react';
+import { ClipboardCheck, Sparkles, CheckCircle2, ChevronRight, Home, Ticket } from 'lucide-react';
+
 
 export default function Checkout() {
-  const { cart, subtotal, deliveryCharges, grandTotal, clearCart, navigate, currentUser } = useCart();
+  const { 
+    cart, 
+    subtotal, 
+    deliveryCharges, 
+    discount, 
+    grandTotal, 
+    appliedPromo, 
+    promoError, 
+    promoSuccess, 
+    applyPromo, 
+    removePromo, 
+    setPromoError, 
+    setPromoSuccess, 
+    clearCart, 
+    navigate, 
+    currentUser 
+  } = useCart();
+  
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+
 
   // If cart is empty and no order is completed, redirect home
   if (cart.length === 0 && !completedOrder) {
@@ -44,12 +64,19 @@ export default function Checkout() {
         customImage: item.customImage // Contains compressed Base64 string!
       })),
       subtotal,
+      promoCode: appliedPromo ? appliedPromo.code : null,
+      discount: discount || 0,
       delivery: deliveryCharges,
       total: grandTotal
     };
 
     // 2. Save order to Local Storage (so Staff & Admin panels can view it)
     const finalizedOrder = addOrder(orderData);
+
+    // Increment usage statistics in local storage
+    if (appliedPromo) {
+      incrementPromoUsage(appliedPromo.code);
+    }
 
     // 3. Trigger WhatsApp redirection API
     openWhatsAppOrder(finalizedOrder);
@@ -59,6 +86,9 @@ export default function Checkout() {
 
     // 5. Clear global cart
     clearCart();
+    
+    // Clear coupon selection
+    removePromo();
   };
 
   // Thank You Screen
@@ -106,22 +136,14 @@ export default function Checkout() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md mt-2">
+        <div className="w-full max-w-md mt-2">
           <button
             onClick={() => navigate('home')}
-            className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover-scale"
+            className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover-scale"
           >
             <Home size={14} />
             <span>Go Back Shopping</span>
           </button>
-          
-          <a
-            href="/staff.html"
-            className="flex-1 py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover-scale cursor-pointer"
-          >
-            <span>Staff Portal</span>
-            <ChevronRight size={14} />
-          </a>
         </div>
       </div>
     );
@@ -172,11 +194,81 @@ export default function Checkout() {
             ))}
           </div>
 
+          {/* Promo Code Input Block */}
+          <div className="border-t border-white/5 pt-4 flex flex-col gap-2">
+            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <Ticket size={12} className="text-amber-500" />
+              <span>Have a Coupon?</span>
+            </h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoCodeInput}
+                onChange={(e) => {
+                  setPromoCodeInput(e.target.value.toUpperCase());
+                  setPromoError('');
+                  setPromoSuccess('');
+                }}
+                disabled={!!appliedPromo}
+                placeholder="ENTER CODE"
+                className="flex-1 px-3 py-2 rounded-xl glass-input text-xs font-semibold focus:outline-none placeholder:text-gray-600 disabled:opacity-50 text-white uppercase"
+              />
+              {appliedPromo ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    removePromo();
+                    setPromoCodeInput('');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-extrabold uppercase border border-red-500/20 transition-all cursor-pointer hover-scale"
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => applyPromo(promoCodeInput)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase transition-all cursor-pointer hover-scale shadow-lg shadow-amber-500/10"
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+            
+            {promoError && (
+              <p className="text-[10px] text-red-400 font-extrabold transition-all duration-300">
+                {promoError}
+              </p>
+            )}
+            {promoSuccess && (
+              <p className="text-[10px] text-emerald-400 font-extrabold transition-all duration-300">
+                {promoSuccess}
+              </p>
+            )}
+            
+            {appliedPromo && (
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-[10px] text-emerald-400 font-semibold mt-1">
+                <span>Coupon Applied: <span className="font-extrabold uppercase">{appliedPromo.code}</span></span>
+                <span className="font-extrabold">
+                  {appliedPromo.discountType === 'percentage' 
+                    ? `${appliedPromo.discountValue}% OFF` 
+                    : `₹${appliedPromo.discountValue} OFF`}
+                </span>
+              </div>
+            )}
+          </div>
+
           <div className="border-t border-white/5 pt-4 flex flex-col gap-2.5">
             <div className="flex justify-between text-xs font-semibold text-gray-400">
               <span>Subtotal</span>
               <span>₹{subtotal}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-xs font-semibold text-emerald-400">
+                <span>Promo Discount</span>
+                <span>-₹{discount}</span>
+              </div>
+            )}
             <div className="flex justify-between text-xs font-semibold text-gray-400">
               <span>Delivery</span>
               {deliveryCharges === 0 ? (
