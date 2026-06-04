@@ -24,6 +24,7 @@ export default function Auth() {
 
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSignupChange = (e) => {
     const { name, value } = e.target;
@@ -69,30 +70,36 @@ export default function Auth() {
     return Object.keys(tempErrors).length === 0;
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
     if (validateLogin()) {
+      setLoading(true);
       try {
-        loginCustomer(loginEmail, loginPassword);
+        await loginCustomer(loginEmail, loginPassword);
         navigate('home');
       } catch (err) {
-        setSubmitError(err.message);
+        setSubmitError(err.message || 'Login failed. Please check your credentials.');
+      } finally {
+        setLoading(false);
       }
     }
   };
 
-  const handleSignupSubmit = (e) => {
+  const handleSignupSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
     if (validateSignup()) {
+      setLoading(true);
       try {
-        signupCustomer(signupData);
+        await signupCustomer(signupData);
         navigate('home');
       } catch (err) {
-        setSubmitError(err.message);
+        setSubmitError(err.message || 'Registration failed.');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -184,10 +191,11 @@ export default function Auth() {
 
             <button
               type="submit"
-              className="w-full mt-3 py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover-scale cursor-pointer"
+              disabled={loading}
+              className={`w-full mt-3 py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover-scale'}`}
             >
-              <span>Sign In</span>
-              <ArrowRight size={14} />
+              <span>{loading ? 'Signing In...' : 'Sign In'}</span>
+              {!loading && <ArrowRight size={14} />}
             </button>
           </form>
         )}
@@ -331,10 +339,11 @@ export default function Auth() {
 
             <button
               type="submit"
-              className="w-full mt-3 py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all hover-scale cursor-pointer"
+              disabled={loading}
+              className={`w-full mt-3 py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover-scale'}`}
             >
-              <span>Create Account & Log In</span>
-              <ArrowRight size={14} />
+              <span>{loading ? 'Creating Account...' : 'Create Account & Log In'}</span>
+              {!loading && <ArrowRight size={14} />}
             </button>
           </form>
         )}

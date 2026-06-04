@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { getProducts, saveProducts, getOrders, saveOrders, getPromos, savePromos, addPromo, updatePromo, deletePromo, getStaff, saveStaff, addStaff, updateStaff, deleteStaff } from '../utils/localStorage';
-import { Plus, Edit2, Trash2, DollarSign, ShoppingCart, Loader2, Users, User, FolderOpen, Save, ShieldAlert, Award, Lock, ChevronRight, LogOut, Ticket, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  getProducts, saveProducts, 
+  getOrders, deleteOrder, 
+  getPromos, addPromo, updatePromo, deletePromo, 
+  getStaff, addStaff, updateStaff, deleteStaff 
+} from '../utils/db';
+import { supabase } from '../utils/supabase';
+import { Plus, Edit2, Trash2, DollarSign, ShoppingCart, Loader2, Users, User, FolderOpen, Save, ShieldAlert, Award, Lock, ChevronRight, LogOut, Ticket, Eye, EyeOff, RefreshCw } from 'lucide-react';
 
 
 export default function Admin() {
@@ -108,30 +114,62 @@ export default function Admin() {
   
   const [visiblePasswords, setVisiblePasswords] = useState({});
 
+  const refreshAllData = useCallback(async () => {
+    try {
+      const [ordersData, productsData, promosData, staffData] = await Promise.all([
+        getOrders(),
+        getProducts(),
+        getPromos(),
+        getStaff()
+      ]);
+      
+      setOrders(ordersData);
+      setProducts(productsData);
+      setPromos(promosData);
+      setStaff(staffData);
+
+      const pending = ordersData.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled').length;
+      const completed = ordersData.filter(o => o.status === 'Completed').length;
+      const revenue = ordersData
+        .filter(o => o.status === 'Completed')
+        .reduce((sum, o) => sum + o.total, 0);
+      setMetrics({
+        totalOrders: ordersData.length,
+        pendingOrders: pending,
+        completedOrders: completed,
+        totalRevenue: revenue
+      });
+    } catch (e) {
+      console.error("Failed to refresh admin panel data:", e);
+    }
+  }, []);
+
   useEffect(() => {
-    const prodsData = getProducts();
-    const ordersData = getOrders();
-    const promosData = getPromos();
-    const staffData = getStaff();
-    setProducts(prodsData);
-    setOrders(ordersData);
-    setPromos(promosData);
-    setStaff(staffData);
+    if (isLoggedIn) {
+      refreshAllData();
 
-    // Calculate metrics
-    const pending = ordersData.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled').length;
-    const completed = ordersData.filter(o => o.status === 'Completed').length;
-    const revenue = ordersData
-      .filter(o => o.status === 'Completed')
-      .reduce((sum, o) => sum + o.total, 0);
+      // Subscribe to changes on orders table
+      const channel = supabase
+        .channel('admin-orders-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders'
+          },
+          (payload) => {
+            console.log('Realtime change received in Admin:', payload);
+            refreshAllData();
+          }
+        )
+        .subscribe();
 
-    setMetrics({
-      totalOrders: ordersData.length,
-      pendingOrders: pending,
-      completedOrders: completed,
-      totalRevenue: revenue
-    });
-  }, [activeTab]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isLoggedIn, refreshAllData]);
 
   // Open Staff Form to Add
   const handleAddStaffClick = () => {
@@ -168,7 +206,7 @@ export default function Admin() {
   };
 
   // Submit Staff Form
-  const handleStaffFormSubmit = (e) => {
+  const handleStaffFormSubmit = async (e) => {
     e.preventDefault();
     if (!staffFormData.username.trim() || !staffFormData.name.trim()) return;
     
@@ -188,29 +226,45 @@ export default function Admin() {
       staffData.password = staffFormData.password.trim() || '123456';
     }
     
-    if (editingStaff) {
-      updateStaff(editingStaff.id, staffData);
-    } else {
-      addStaff(staffData);
+    try {
+      if (editingStaff) {
+        await updateStaff(editingStaff.id, staffData);
+      } else {
+        await addStaff(staffData);
+      }
+      
+      const updatedStaff = await getStaff();
+      setStaff(updatedStaff);
+      setShowStaffForm(false);
+      setEditingStaff(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save staff member details: ' + (err.message || err));
     }
-    
-    setStaff(getStaff());
-    setShowStaffForm(false);
-    setEditingStaff(null);
   };
 
   // Toggle active/inactive instantly for staff
-  const handleToggleStaffStatus = (member) => {
+  const handleToggleStaffStatus = async (member) => {
     const newStatus = member.status === 'Active' ? 'Inactive' : 'Active';
-    updateStaff(member.id, { status: newStatus });
-    setStaff(getStaff());
+    try {
+      await updateStaff(member.id, { status: newStatus });
+      const updatedStaff = await getStaff();
+      setStaff(updatedStaff);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Delete Staff account
-  const handleDeleteStaff = (staffId) => {
+  const handleDeleteStaff = async (staffId) => {
     if (window.confirm('Are you sure you want to permanently delete this staff member account?')) {
-      deleteStaff(staffId);
-      setStaff(getStaff());
+      try {
+        await deleteStaff(staffId);
+        const updatedStaff = await getStaff();
+        setStaff(updatedStaff);
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -222,15 +276,21 @@ export default function Admin() {
   };
 
   // Submit Reset Pass Form
-  const handleResetPassSubmit = (e) => {
+  const handleResetPassSubmit = async (e) => {
     e.preventDefault();
     if (!newPasswordInput.trim()) return;
     
-    updateStaff(resetPassStaff.id, { password: newPasswordInput.trim() });
-    setStaff(getStaff());
-    setShowResetPassModal(false);
-    setResetPassStaff(null);
-    alert(`Password reset successfully for ${resetPassStaff.name}!`);
+    try {
+      await updateStaff(resetPassStaff.id, { password: newPasswordInput.trim() });
+      const updatedStaff = await getStaff();
+      setStaff(updatedStaff);
+      setShowResetPassModal(false);
+      alert(`Password reset successfully for ${resetPassStaff.name}!`);
+      setResetPassStaff(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reset staff password: ' + (err.message || err));
+    }
   };
 
   // Auto Generate Password
@@ -297,7 +357,7 @@ export default function Admin() {
   };
 
   // Submit Promo Form
-  const handlePromoFormSubmit = (e) => {
+  const handlePromoFormSubmit = async (e) => {
     e.preventDefault();
     if (!promoFormData.code.trim()) return;
     
@@ -318,30 +378,48 @@ export default function Admin() {
       status: promoFormData.status
     };
     
-    if (editingPromo) {
-      updatePromo(editingPromo.id, promoData);
-    } else {
-      addPromo(promoData);
+    try {
+      if (editingPromo) {
+        await updatePromo(editingPromo.id, promoData);
+      } else {
+        await addPromo(promoData);
+      }
+      
+      const promosList = await getPromos();
+      setPromos(promosList);
+      setShowPromoForm(false);
+      setEditingPromo(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save promo code: ' + (err.message || err));
     }
-    
-    setPromos(getPromos());
-    setShowPromoForm(false);
-    setEditingPromo(null);
   };
 
   // Delete Promo Code
-  const handleDeletePromo = (promoId) => {
+  const handleDeletePromo = async (promoId) => {
     if (window.confirm('Are you sure you want to permanently delete this promo code?')) {
-      deletePromo(promoId);
-      setPromos(getPromos());
+      try {
+        await deletePromo(promoId);
+        const promosList = await getPromos();
+        setPromos(promosList);
+      } catch (err) {
+        console.error(err);
+        alert('Failed to delete promo code: ' + (err.message || err));
+      }
     }
   };
 
   // Toggle active/inactive instantly
-  const handleTogglePromoStatus = (promo) => {
+  const handleTogglePromoStatus = async (promo) => {
     const newStatus = promo.status === 'Active' ? 'Inactive' : 'Active';
-    updatePromo(promo.id, { status: newStatus });
-    setPromos(getPromos());
+    try {
+      await updatePromo(promo.id, { status: newStatus });
+      const promosList = await getPromos();
+      setPromos(promosList);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update promo code status: ' + (err.message || err));
+    }
   };
 
   const handleInputChange = (e) => {
@@ -382,7 +460,7 @@ export default function Admin() {
   };
 
   // Submit Product Form
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const priceNum = parseFloat(formData.price) || 0;
     const stockNum = parseInt(formData.stock) >= 0 ? parseInt(formData.stock) : 25;
@@ -463,23 +541,33 @@ export default function Admin() {
       updatedProducts = [newProduct, ...products];
     }
 
-    setProducts(updatedProducts);
-    saveProducts(updatedProducts);
-    setShowProductForm(false);
-    setEditingProduct(null);
+    try {
+      await saveProducts(updatedProducts);
+      setProducts(updatedProducts);
+      setShowProductForm(false);
+      setEditingProduct(null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save product: ' + (err.message || err));
+    }
   };
 
   // Delete Product
-  const handleDeleteProduct = (productId) => {
+  const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product from the inventory?')) {
       const updated = products.filter(p => p.id !== productId);
-      setProducts(updated);
-      saveProducts(updated);
+      try {
+        await saveProducts(updated);
+        setProducts(updated);
+      } catch (err) {
+        console.error(err);
+        alert('Failed to delete product: ' + (err.message || err));
+      }
     }
   };
 
   // Adjust Stock Level Inline
-  const handleStockAdjust = (productId, change) => {
+  const handleStockAdjust = async (productId, change) => {
     const updated = products.map(p => {
       if (p.id === productId) {
         const currentStock = p.stock !== undefined ? p.stock : 25;
@@ -488,8 +576,13 @@ export default function Admin() {
       }
       return p;
     });
-    setProducts(updated);
-    saveProducts(updated);
+    try {
+      await saveProducts(updated);
+      setProducts(updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to adjust stock level: ' + (err.message || err));
+    }
   };
 
   // Guarded Admin Login Screen Render
@@ -677,7 +770,7 @@ export default function Admin() {
               <div>
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Orders</p>
                 <h3 className="text-2xl font-black text-white mt-1">{metrics.totalOrders}</h3>
-                <p className="text-[10px] text-gray-500 mt-1">Stored locally</p>
+                <p className="text-[10px] text-gray-500 mt-1">Stored in database</p>
               </div>
               <div className="p-3.5 bg-amber-500/10 text-amber-400 rounded-xl">
                 <ShoppingCart size={24} />
@@ -1200,7 +1293,7 @@ export default function Admin() {
             {orders.length === 0 ? (
               <div className="glass-panel rounded-2xl p-12 text-center border border-white/5 flex flex-col items-center justify-center gap-4">
                 <span className="text-4xl">📭</span>
-                <p className="text-sm font-semibold text-gray-300">No orders registered in Local Storage yet.</p>
+                <p className="text-sm font-semibold text-gray-300">No orders registered in the Database yet.</p>
               </div>
             ) : (
               <div className="glass-panel rounded-2xl overflow-hidden border border-white/5 shadow-xl">
@@ -1264,11 +1357,30 @@ export default function Admin() {
                           </td>
                           <td className="p-4 text-center">
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to permanently delete order ${order.id} from local records?`)) {
-                                  const updated = orders.filter(o => o.id !== order.id);
-                                  setOrders(updated);
-                                  saveOrders(updated);
+                              onClick={async () => {
+                                if (window.confirm(`Are you sure you want to permanently delete order ${order.id} from the database?`)) {
+                                  try {
+                                    await deleteOrder(order.id);
+                                    const updated = orders.filter(o => o.id !== order.id);
+                                    setOrders(updated);
+                                    
+                                    // Recalculate metrics on deletion
+                                    const pending = updated.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled').length;
+                                    const completed = updated.filter(o => o.status === 'Completed').length;
+                                    const revenue = updated
+                                      .filter(o => o.status === 'Completed')
+                                      .reduce((sum, o) => sum + o.total, 0);
+                                    
+                                    setMetrics({
+                                      totalOrders: updated.length,
+                                      pendingOrders: pending,
+                                      completedOrders: completed,
+                                      totalRevenue: revenue
+                                    });
+                                  } catch (err) {
+                                    console.error(err);
+                                    alert('Failed to delete order: ' + (err.message || err));
+                                  }
                                 }
                               }}
                               className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all cursor-pointer"

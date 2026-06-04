@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ProductCard from '../components/ProductCard';
-import { getProducts } from '../utils/localStorage';
+import { getProducts } from '../utils/db';
 import { Search, SlidersHorizontal, ShieldCheck, Truck, Sparkles, MessageCircleHeart } from 'lucide-react';
 
 export default function Home() {
@@ -10,7 +10,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState('featured'); // 'featured', 'low-high', 'high-low'
 
   useEffect(() => {
-    setProducts(getProducts());
+    getProducts().then(data => setProducts(data)).catch(console.error);
   }, []);
 
   const categories = ['All', 'Photo Frames', 'Customized Frames', 'Gifts', 'Others'];

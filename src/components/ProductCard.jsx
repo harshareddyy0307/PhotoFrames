@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
-import { compressImage } from '../utils/localStorage';
+import { compressImage } from '../utils/db';
 import { Upload, Check, ShoppingCart, Plus, Minus, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 export default function ProductCard({ product }) {

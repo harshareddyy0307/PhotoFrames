@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import OrderForm from '../components/OrderForm';
-import { addOrder, incrementPromoUsage } from '../utils/localStorage';
+import { addOrder, incrementPromoUsage } from '../utils/db';
 import { openWhatsAppOrder } from '../utils/whatsapp';
 import { ClipboardCheck, Sparkles, CheckCircle2, ChevronRight, Home, Ticket } from 'lucide-react';
 
@@ -27,6 +27,7 @@ export default function Checkout() {
   
   const [completedOrder, setCompletedOrder] = useState(null);
   const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [loading, setLoading] = useState(false);
 
 
   // If cart is empty and no order is completed, redirect home
@@ -46,50 +47,68 @@ export default function Checkout() {
     );
   }
 
-  const handleFormSubmit = (customerDetails) => {
-    // 1. Compile full order details
-    const orderData = {
-      userId: currentUser?.id || null,
-      customer: {
-        ...customerDetails,
-        email: currentUser?.email || ''
-      },
-      items: cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        size: item.size,
-        quantity: item.quantity,
-        image: item.image, // Fix: Include product catalog catalog thumbnail
-        customImage: item.customImage // Contains compressed Base64 string!
-      })),
-      subtotal,
-      promoCode: appliedPromo ? appliedPromo.code : null,
-      discount: discount || 0,
-      delivery: deliveryCharges,
-      total: grandTotal
-    };
+  const handleFormSubmit = async (customerDetails) => {
+    setLoading(true);
+    try {
+      // 1. Compile full order details
+      const orderData = {
+        user_id: currentUser?.id || null,
+        customer: {
+          ...customerDetails,
+          email: currentUser?.email || ''
+        },
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          size: item.size,
+          quantity: item.quantity,
+          image: item.image, // Fix: Include product catalog thumbnail
+          customImage: item.customImage // Contains compressed Base64 string!
+        })),
+        subtotal,
+        promo_code: appliedPromo ? appliedPromo.code : null,
+        discount: discount || 0,
+        delivery: deliveryCharges,
+        total: grandTotal
+      };
 
-    // 2. Save order to Local Storage (so Staff & Admin panels can view it)
-    const finalizedOrder = addOrder(orderData);
+      // 2. Save order to Supabase
+      const finalizedOrder = await addOrder(orderData);
 
-    // Increment usage statistics in local storage
-    if (appliedPromo) {
-      incrementPromoUsage(appliedPromo.code);
+      // Increment usage statistics in database
+      if (appliedPromo) {
+        await incrementPromoUsage(appliedPromo.code);
+      }
+
+      // 3. Trigger WhatsApp redirection API
+      openWhatsAppOrder(finalizedOrder);
+
+      // 4. Set state to render the Thank You visual screen
+      setCompletedOrder(finalizedOrder);
+
+      // 5. Clear global cart
+      clearCart();
+      
+      // Clear coupon selection
+      removePromo();
+    } catch (e) {
+      console.error("Order submission failed:", e);
+      alert("Failed to submit your order. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    // 3. Trigger WhatsApp redirection API
-    openWhatsAppOrder(finalizedOrder);
-
-    // 4. Set state to render the Thank You visual screen
-    setCompletedOrder(finalizedOrder);
-
-    // 5. Clear global cart
-    clearCart();
-    
-    // Clear coupon selection
-    removePromo();
   };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center flex flex-col items-center justify-center gap-6 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+        <h2 className="text-xl font-bold text-white">Saving Your Order...</h2>
+        <p className="text-xs text-gray-400">Processing custom references and securing connection to database.</p>
+      </div>
+    );
+  }
 
   // Thank You Screen
   if (completedOrder) {

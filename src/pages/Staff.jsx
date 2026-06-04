@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { getOrders, saveOrders, authenticateStaff } from '../utils/localStorage';
-import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getOrders, authenticateStaff, updateOrderStatus } from '../utils/db';
+import { supabase } from '../utils/supabase';
+import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User, ShieldCheck, RefreshCw } from 'lucide-react';
 
 
 export default function Staff() {
@@ -11,6 +12,7 @@ export default function Staff() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loading, setLoading] = useState(false);
   
   // Profile State
   const [staffUser, setStaffUser] = useState(() => {
@@ -28,23 +30,56 @@ export default function Staff() {
   const [selectedPhoto, setSelectedPhoto] = useState(null); // base64 string for Modal
   const [selectedPhotoName, setSelectedPhotoName] = useState('');
 
+  const refreshOrders = useCallback(async () => {
+    try {
+      const data = await getOrders();
+      setOrders(data);
+    } catch (e) {
+      console.error("Failed to load orders:", e);
+    }
+  }, []);
+
   useEffect(() => {
     if (isLoggedIn) {
-      setOrders(getOrders());
-    }
-  }, [isLoggedIn]);
+      refreshOrders();
 
-  const handleLogin = (e) => {
+      // Subscribe to changes on orders table
+      const channel = supabase
+        .channel('staff-orders-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders'
+          },
+          (payload) => {
+            console.log('Realtime change received in Staff:', payload);
+            refreshOrders();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isLoggedIn, refreshOrders]);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setLoginError('');
+    setLoading(true);
     try {
-      const profile = authenticateStaff(username, password);
+      const profile = await authenticateStaff(username, password);
       setStaffUser(profile);
       setIsLoggedIn(true);
-      setLoginError('');
       sessionStorage.setItem('ms_staff_auth', 'true');
       sessionStorage.setItem('ms_staff_user', JSON.stringify(profile));
     } catch (err) {
       setLoginError(err.message || 'Invalid username or password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,15 +90,17 @@ export default function Staff() {
     sessionStorage.removeItem('ms_staff_user');
   };
 
-  const handleStatusChange = (orderId, newStatus) => {
-    const updatedOrders = orders.map((order) => {
-      if (order.id === orderId) {
-        return { ...order, status: newStatus };
-      }
-      return order;
-    });
-    setOrders(updatedOrders);
-    saveOrders(updatedOrders);
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      // Optimistically update local state
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      ));
+    } catch (e) {
+      console.error("Failed to update status:", e);
+      alert("Failed to update order status.");
+    }
   };
 
   const handleContactCustomer = (customerName, customerPhone, orderId) => {
@@ -78,16 +115,16 @@ export default function Staff() {
   if (!isLoggedIn) {
     return (
       <div className="mx-auto max-w-md px-4 py-16 flex flex-col justify-center min-h-[500px]">
-        <div className="glass-panel p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col gap-6">
+        <div className="glass-panel p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col gap-6 animate-scale-up">
           <div className="flex flex-col items-center gap-2 text-center">
             <div className="p-4 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
               <Lock size={32} />
             </div>
-            <h2 className="text-2xl font-black text-white font-display mt-2">Staff Login</h2>
-            <p className="text-xs text-gray-400">Log in to process custom printing files and update orders.</p>
+            <h2 className="text-2xl font-black text-white font-display mt-2">Staff Portal</h2>
+            <p className="text-xs text-gray-400">Authenticate using registered employee credentials.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+          <form onSubmit={handleLogin} className="flex flex-col gap-4 text-xs font-semibold text-gray-300">
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Username</label>
               <input
@@ -114,10 +151,11 @@ export default function Staff() {
 
             <button
               type="submit"
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover-scale cursor-pointer"
+              disabled={loading}
+              className={`w-full mt-2 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover-scale'}`}
             >
-              <span>Unlock Dashboard</span>
-              <ChevronRight size={14} />
+              <span>{loading ? 'Verifying...' : 'Unlock Dashboard'}</span>
+              {!loading && <ChevronRight size={14} />}
             </button>
           </form>
         </div>

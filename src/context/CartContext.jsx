@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authenticateUser, registerUser, updateUserProfile, getPromos } from '../utils/localStorage';
+import { supabase } from '../utils/supabase';
+import { getPromos } from '../utils/db';
 
 
 const CartContext = createContext(null);
@@ -40,38 +41,121 @@ export const CartProvider = ({ children }) => {
     }
   });
 
+  // Track auth changes dynamically
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          const userObj = {
+            id: session.user.id,
+            email: session.user.email,
+            ...profile
+          };
+          setCurrentUser(userObj);
+          sessionStorage.setItem('ms_current_user', JSON.stringify(userObj));
+        } catch (e) {
+          console.error("Auth state change sync profile failed:", e);
+        }
+      } else {
+        setCurrentUser(null);
+        sessionStorage.removeItem('ms_current_user');
+      }
+    });
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   const navigate = (viewName, params = {}) => {
     setView(viewName);
     setViewParams(params);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const loginCustomer = (email, password) => {
-    const user = authenticateUser(email, password);
-    setCurrentUser(user);
-    sessionStorage.setItem('ms_current_user', JSON.stringify(user));
-    return user;
+  const loginCustomer = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (error) throw error;
+
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileErr) throw profileErr;
+
+    const userObj = {
+      id: data.user.id,
+      email: data.user.email,
+      ...profile
+    };
+    setCurrentUser(userObj);
+    sessionStorage.setItem('ms_current_user', JSON.stringify(userObj));
+    return userObj;
   };
 
-  const signupCustomer = (userData) => {
-    const newUser = registerUser(userData);
-    setCurrentUser(newUser);
-    sessionStorage.setItem('ms_current_user', JSON.stringify(newUser));
-    return newUser;
+  const signupCustomer = async (userData) => {
+    const { data, error } = await supabase.auth.signUp({
+      email: userData.email,
+      password: userData.password
+    });
+    if (error) throw error;
+    if (!data.user) throw new Error('Registration failed.');
+
+    const profileData = {
+      id: data.user.id,
+      name: userData.name,
+      phone: userData.phone,
+      address: userData.address,
+      city: userData.city,
+      pincode: userData.pincode,
+      landmark: userData.landmark
+    };
+
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .insert([profileData]);
+
+    if (profileErr) throw profileErr;
+
+    const userObj = {
+      id: data.user.id,
+      email: userData.email,
+      ...profileData
+    };
+    setCurrentUser(userObj);
+    sessionStorage.setItem('ms_current_user', JSON.stringify(userObj));
+    return userObj;
   };
 
-  const logoutCustomer = () => {
+  const logoutCustomer = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
     sessionStorage.removeItem('ms_current_user');
     navigate('home');
   };
 
-  const updateProfile = (fields) => {
+  const updateProfile = async (fields) => {
     if (currentUser) {
-      const updated = updateUserProfile(currentUser.id, fields);
-      setCurrentUser(updated);
-      sessionStorage.setItem('ms_current_user', JSON.stringify(updated));
-      return updated;
+      const { error } = await supabase
+        .from('profiles')
+        .update(fields)
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+
+      const updatedObj = { ...currentUser, ...fields };
+      setCurrentUser(updatedObj);
+      sessionStorage.setItem('ms_current_user', JSON.stringify(updatedObj));
+      return updatedObj;
     }
   };
 
@@ -93,52 +177,56 @@ export const CartProvider = ({ children }) => {
     }
   }, [subtotal, appliedPromo]);
 
-  const applyPromo = (codeString) => {
+  const applyPromo = async (codeString) => {
     setPromoError('');
     setPromoSuccess('');
-    
+
     if (!codeString || !codeString.trim()) {
       setPromoError('Please enter a promo code.');
       return;
     }
-    
-    const promos = getPromos();
-    const foundPromo = promos.find(p => p.code.toUpperCase() === codeString.trim().toUpperCase());
-    
-    if (!foundPromo) {
-      setPromoError('Invalid Promo Code');
-      return;
+
+    try {
+      const promos = await getPromos();
+      const foundPromo = promos.find(p => p.code.toUpperCase() === codeString.trim().toUpperCase());
+
+      if (!foundPromo) {
+        setPromoError('Invalid Promo Code');
+        return;
+      }
+
+      if (foundPromo.status !== 'Active') {
+        setPromoError('This promo code is inactive.');
+        return;
+      }
+
+      // Check expiry
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expiry = new Date(foundPromo.expiryDate);
+      expiry.setHours(0, 0, 0, 0);
+      if (expiry < today) {
+        setPromoError('This promo code has expired.');
+        return;
+      }
+
+      // Check usage limits
+      if (foundPromo.usageLimit && foundPromo.usageCount >= foundPromo.usageLimit) {
+        setPromoError('This promo code usage limit has been reached.');
+        return;
+      }
+
+      // Check min order value requirement
+      if (subtotal < foundPromo.minOrderValue) {
+        setPromoError(`Minimum order value of ₹${foundPromo.minOrderValue} required to apply this code.`);
+        return;
+      }
+
+      setAppliedPromo(foundPromo);
+      setPromoSuccess('Promo Applied Successfully');
+    } catch (e) {
+      setPromoError('Failed to verify promo code.');
     }
-    
-    if (foundPromo.status !== 'Active') {
-      setPromoError('This promo code is inactive.');
-      return;
-    }
-    
-    // Check expiry
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const expiry = new Date(foundPromo.expiryDate);
-    expiry.setHours(0, 0, 0, 0);
-    if (expiry < today) {
-      setPromoError('This promo code has expired.');
-      return;
-    }
-    
-    // Check usage limits
-    if (foundPromo.usageLimit && foundPromo.usageCount >= foundPromo.usageLimit) {
-      setPromoError('This promo code usage limit has been reached.');
-      return;
-    }
-    
-    // Check min order value requirement
-    if (subtotal < foundPromo.minOrderValue) {
-      setPromoError(`Minimum order value of ₹${foundPromo.minOrderValue} required to apply this code.`);
-      return;
-    }
-    
-    setAppliedPromo(foundPromo);
-    setPromoSuccess('Promo Applied Successfully');
   };
 
   const removePromo = () => {
@@ -146,6 +234,7 @@ export const CartProvider = ({ children }) => {
     setPromoError('');
     setPromoSuccess('');
   };
+
 
 
   const addToCart = (product, size, quantity, customImage = null, overridePrice = null) => {

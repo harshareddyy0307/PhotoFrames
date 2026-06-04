@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
-import { getOrders } from '../utils/localStorage';
+import { getOrders } from '../utils/db';
 import { 
   User, Mail, Phone, MapPin, Landmark, Home, 
   Package, Calendar, CheckCircle2, Clock, XCircle, 
@@ -41,13 +41,16 @@ export default function Profile() {
       });
 
       // Fetch user's orders
-      const allOrders = getOrders();
-      const filtered = allOrders.filter(o => 
-        o.userId === currentUser.id || 
-        o.customer?.email?.toLowerCase() === currentUser.email?.toLowerCase() || 
-        o.customer?.phone === currentUser.phone
-      );
-      setOrders(filtered);
+      getOrders().then(allOrders => {
+        const filtered = allOrders.filter(o => 
+          o.user_id === currentUser.id || 
+          o.customer?.email?.toLowerCase() === currentUser.email?.toLowerCase() || 
+          o.customer?.phone === currentUser.phone
+        );
+        setOrders(filtered);
+      }).catch(err => {
+        console.error("Failed to load user orders:", err);
+      });
     }
   }, [currentUser]);
 
@@ -60,14 +63,15 @@ export default function Profile() {
     }
   };
 
-  // Validate form details
+  // Form Validation
   const validateForm = () => {
     const errors = {};
     if (!formData.name.trim()) errors.name = 'Full name is required';
     
     const phoneRegex = /^[6-9]\d{9}$/;
-    if (!formData.phone.trim()) errors.phone = 'Phone number is required';
-    else if (!phoneRegex.test(formData.phone.trim())) {
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!phoneRegex.test(formData.phone.trim())) {
       errors.phone = 'Enter a valid 10-digit mobile number';
     }
 
@@ -75,8 +79,9 @@ export default function Profile() {
     if (!formData.city.trim()) errors.city = 'City name is required';
 
     const pincodeRegex = /^\d{6}$/;
-    if (!formData.pincode.trim()) errors.pincode = 'Pincode is required';
-    else if (!pincodeRegex.test(formData.pincode.trim())) {
+    if (!formData.pincode.trim()) {
+      errors.pincode = 'Pincode is required';
+    } else if (!pincodeRegex.test(formData.pincode.trim())) {
       errors.pincode = 'Enter a valid 6-digit postal pincode';
     }
 
@@ -85,14 +90,14 @@ export default function Profile() {
   };
 
   // Update Profile Callback
-  const handleUpdateProfile = (e) => {
+  const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setSuccessMessage('');
     setErrorMessage('');
 
     if (validateForm()) {
       try {
-        updateProfile(formData);
+        await updateProfile(formData);
         setSuccessMessage('Shipping profile coordinates updated successfully!');
         
         // Hide success message after 4 seconds
