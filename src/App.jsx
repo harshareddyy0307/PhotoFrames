@@ -69,8 +69,6 @@ export default function App() {
               Back to Top
             </button>
             <span className="text-gray-700">•</span>
-            <span className="text-gray-500">Demo Account: staff1 / 1234</span>
-            <span className="text-gray-700">•</span>
             <span>Made with E-commerce Excellence</span>
           </div>
         </div>

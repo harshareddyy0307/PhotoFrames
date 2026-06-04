@@ -127,3 +127,19 @@ h1, h2, h3, h4, h5, h6 {
 .hover-scale:hover {
   transform: scale(1.02);
 }
+
+/* Pulsing amber warning border animation for ringing orders */
+@keyframes pulse-glow {
+  0%, 100% {
+    border-color: rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.05);
+  }
+  50% {
+    border-color: rgba(245, 158, 11, 0.65);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 1.5s infinite ease-in-out;
+}
+

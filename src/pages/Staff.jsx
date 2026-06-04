@@ -1,8 +1,63 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getOrders, authenticateStaff, updateOrderStatus } from '../utils/db';
 import { supabase } from '../utils/supabase';
-import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Lock, Eye, Download, LogOut, CheckCircle, MessageSquare, Calendar, ChevronRight, User, ShieldCheck, RefreshCw, Bell } from 'lucide-react';
 
+
+// Web Audio API Ringtone Synthesizer
+let audioCtx = null;
+let chimeInterval = null;
+
+const playDoubleChime = () => {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const now = audioCtx.currentTime;
+    
+    // First tone (D5)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now); // D5
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.4);
+
+    // Second tone (A5)
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880.00, now + 0.15); // A5
+    gain2.gain.setValueAtTime(0.15, now + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    osc2.start(now + 0.15);
+    osc2.stop(now + 0.65);
+  } catch (e) {
+    console.error("Web Audio playback failed:", e);
+  }
+};
+
+const startRingtone = () => {
+  if (chimeInterval) return;
+  playDoubleChime();
+  chimeInterval = setInterval(playDoubleChime, 1500);
+};
+
+const stopRingtone = () => {
+  if (chimeInterval) {
+    clearInterval(chimeInterval);
+    chimeInterval = null;
+  }
+};
 
 export default function Staff() {
   // Login State
@@ -13,6 +68,36 @@ export default function Staff() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Ringing Orders State
+  const [ringingOrders, setRingingOrders] = useState([]);
+
+  // Resume AudioContext on any user gesture to satisfy browser autoplay policy
+  useEffect(() => {
+    const handleGesture = () => {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    };
+    window.addEventListener('click', handleGesture);
+    window.addEventListener('keydown', handleGesture);
+    return () => {
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+    };
+  }, []);
+
+  // Monitor ringing queue and start/stop ringtone loop
+  useEffect(() => {
+    if (isLoggedIn && ringingOrders.length > 0) {
+      startRingtone();
+    } else {
+      stopRingtone();
+    }
+    return () => {
+      stopRingtone();
+    };
+  }, [ringingOrders, isLoggedIn]);
   
   // Profile State
   const [staffUser, setStaffUser] = useState(() => {
@@ -55,6 +140,16 @@ export default function Staff() {
           },
           (payload) => {
             console.log('Realtime change received in Staff:', payload);
+            if (payload.eventType === 'INSERT' && payload.new && payload.new.status === 'Pending') {
+              setRingingOrders(prev => {
+                if (!prev.includes(payload.new.id)) {
+                  return [...prev, payload.new.id];
+                }
+                return prev;
+              });
+            } else if (payload.eventType === 'UPDATE' && payload.new && payload.new.status !== 'Pending') {
+              setRingingOrders(prev => prev.filter(id => id !== payload.new.id));
+            }
             refreshOrders();
           }
         )
@@ -86,6 +181,7 @@ export default function Staff() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setStaffUser(null);
+    setRingingOrders([]); // Clear active alarms
     sessionStorage.removeItem('ms_staff_auth');
     sessionStorage.removeItem('ms_staff_user');
   };
@@ -93,6 +189,10 @@ export default function Staff() {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await updateOrderStatus(orderId, newStatus);
+      // Remove from ringing queue if accepted/updated
+      if (newStatus !== 'Pending') {
+        setRingingOrders(prev => prev.filter(id => id !== orderId));
+      }
       // Optimistically update local state
       setOrders(prev => prev.map(order => 
         order.id === orderId ? { ...order, status: newStatus } : order
@@ -267,22 +367,41 @@ export default function Staff() {
             {displayedOrders.map((order) => (
               <div
                 key={order.id}
-                className="glass-panel p-5 rounded-2xl border border-white/5 shadow-xl flex flex-col gap-5 transition-all hover:border-white/10"
+                className={`glass-panel p-5 rounded-2xl border shadow-xl flex flex-col gap-5 transition-all hover:border-white/10 ${
+                  ringingOrders.includes(order.id)
+                    ? 'border-amber-500/40 shadow-lg shadow-amber-500/5 animate-pulse-glow bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-slate-900 to-slate-900'
+                    : 'border-white/5'
+                }`}
               >
                 {/* 1. Header Information Row */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full uppercase">
+                    <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full uppercase flex items-center gap-1.5">
+                      {ringingOrders.includes(order.id) && <Bell size={12} className="animate-bounce text-amber-400 fill-amber-400" />}
                       {order.id}
                     </span>
+                    {ringingOrders.includes(order.id) && (
+                      <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-md animate-pulse">
+                        🔔 NEW ORDER RINGING
+                      </span>
+                    )}
                     <span className="text-xs text-gray-400 flex items-center gap-1">
                       <Calendar size={12} />
                       {new Date(order.date).toLocaleString()}
                     </span>
                   </div>
 
-                  {/* Status Dropdown */}
-                  <div className="flex items-center gap-2">
+                  {/* Status Dropdown / Action Row */}
+                  <div className="flex items-center gap-3">
+                    {ringingOrders.includes(order.id) && staffUser?.role !== 'Designer' && (
+                      <button
+                        onClick={() => handleStatusChange(order.id, 'Processing')}
+                        className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 transition-all hover-scale cursor-pointer animate-pulse shadow-md shadow-amber-500/25"
+                      >
+                        <CheckCircle size={12} />
+                        <span>Accept Order</span>
+                      </button>
+                    )}
                     <span className="text-xs font-bold text-gray-400">Status:</span>
                     <select
                       value={order.status}
